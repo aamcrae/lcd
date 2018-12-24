@@ -1,11 +1,11 @@
-package meterman_test
+package lcd_test
 
 import (
     "testing"
 
     "fmt"
     "github.com/aamcrae/config"
-    "github.com/aamcrae/MeterMan"
+    "github.com/aamcrae/MeterMan/lcd"
     "image"
     "image/jpeg"
     "os"
@@ -29,7 +29,7 @@ func runTest(t *testing.T, name string, result string) {
     if err != nil {
         t.Fatalf("Can't read config %s: %v", cname, err)
     }
-    lcd, err := meterman.CreateLcdDecoder(conf)
+    lcd, err := lcd.CreateLcdDecoder(conf)
     if err != nil {
         t.Fatalf("LCD config for %s failed %v", cname, err)
     }

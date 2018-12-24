@@ -1,4 +1,4 @@
-package meterman
+package lcd
 
 import (
     "fmt"
