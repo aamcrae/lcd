@@ -26,14 +26,20 @@ func CreateLcdDecoder(conf *config.Config) (* LcdDecoder, error) {
         }
     }
     for _, e := range conf.Get("digit") {
-        if len(e.Tokens) != 3 {
+        if len(e.Tokens) != 3 && len(e.Tokens) != 5 {
             return nil, fmt.Errorf("Bad digit config line %d", e.Lineno)
         }
         v := readInts(e.Tokens[1:])
-        if len(v) != 2 {
+        min := 0
+        max := 0x10000
+        if (len(v) == 4) {
+            min = v[2]
+            max = v[3]
+        }
+        if len(v) != 2 && len(v) != 4 {
             return nil, fmt.Errorf("Bad config for digit at line %d", e.Lineno)
         }
-        if _, err := l.AddDigit(e.Tokens[0], v[0], v[1]); err != nil {
+        if _, err := l.AddDigit(e.Tokens[0], v[0], v[1], min, max); err != nil {
             return nil, fmt.Errorf("Invalid digit config at line %d: %v", e.Lineno, err)
         }
     }
