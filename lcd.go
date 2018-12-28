@@ -182,7 +182,7 @@ func (l *LcdDecoder) Decode(img image.Image) ([]string, []bool) {
     for _, d := range l.digits {
         lcd := d.lcd
         // Find off point.
-        off := scaledSample(img, d, lcd.off, 0, 0x10000)
+        // off := scaledSample(img, d, lcd.off, 0, 0x10000)
         lookup := 0
         p := make([]int, len(lcd.segments))
         on := l.threshold
@@ -194,9 +194,9 @@ func (l *LcdDecoder) Decode(img image.Image) ([]string, []bool) {
             }
         }
         result, found := resultTable[lookup]
-        if !found {
-            fmt.Printf("Element not found, on = %d, off = %d, pixels: %v\n", on, off, p)
-        }
+        //if !found {
+            //fmt.Printf("Element not found, on = %d, off = %d, pixels: %v\n", on, off, p)
+        //}
         strs = append(strs, result)
         ok = append(ok, found)
     }
