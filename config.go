@@ -14,14 +14,10 @@ func CreateLcdDecoder(conf *config.Config) (* LcdDecoder, error) {
         }
         name := e.Tokens[0]
         v := readInts(e.Tokens[1:])
-        var decimal []int
-        if len(v) == 9 {
-            decimal = v[7:]
-            v = v[:7]
-        } else if len(v) != 7 {
+        if len(v) != 7 {
             return nil, fmt.Errorf("Bad config for LCD at line %d", e.Lineno)
         }
-        if err := l.AddLCD(name, v[:6], v[6], decimal); err != nil {
+        if err := l.AddLCD(name, v[:6], v[6]); err != nil {
             return nil, fmt.Errorf("Invalid config at line %d: %v", e.Lineno, err)
         }
     }

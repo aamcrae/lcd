@@ -12,6 +12,7 @@ const defaultThreshold = 50
 const shrinkBB = false
 const offMargin = 4
 const onMargin = 2
+const segments = 7
 
 // Corners.
 const (
@@ -34,7 +35,6 @@ type Lcd struct {
     scaled []point
     line int
     off sample
-    decimal sample
     segments []sample
 }
 
@@ -42,8 +42,8 @@ type Digit struct {
     index int
     lcd *Lcd
     pos point
-    min int
-    max int
+    min []int
+    max []int
 }
 
 type LcdDecoder struct {
@@ -108,15 +108,12 @@ func NewLcdDecoder() *LcdDecoder {
    return &LcdDecoder{[]*Digit{}, map[string]*Lcd{}, defaultThreshold}
 }
 
-func (l *LcdDecoder) AddLCD(name string, bb []int, width int, decimal []int) error {
+func (l *LcdDecoder) AddLCD(name string, bb []int, width int) error {
     if _, ok := l.lcdMap[name]; ok {
         return fmt.Errorf("Duplicate LCD entry: %s", name)
     }
     lcd := &Lcd{name:name, bb:[]point{point{0,0}, point{bb[0],bb[1]}, point{bb[2],bb[3]}, point{bb[4],bb[5]}}, line:width}
     // Initialise the sample lists
-    if len(decimal) == 2 {
-        lcd.decimal = []point{{lcd.bb[BR].x + decimal[0], lcd.bb[BR].y + decimal[1]}}
-    }
     // Shrink the bounding box by 1/2 the width
     if shrinkBB {
         lcd.scaled = shrink(lcd.bb, lcd.line/2)
@@ -137,7 +134,7 @@ func (l *LcdDecoder) AddLCD(name string, bb []int, width int, decimal []int) err
     // Build the 'off' sample using the middle blocks.
     lcd.off = buildOff(tl, tr, bmr, bml, width)
     lcd.off = append(lcd.off, buildOff(tml, tmr, br, bl, width)...)
-    lcd.segments = make([]sample, 7)
+    lcd.segments = make([]sample, segments)
     // The assignments must match the bit allocation in
     // the lookup table.
     // Top left
@@ -164,7 +161,14 @@ func (l *LcdDecoder) AddDigit(name string, x, y, min, max int) (int, error) {
         return 0, fmt.Errorf("Unknown LCD %s", name)
     }
     index := len(l.digits)
-    l.digits = append(l.digits, &Digit{index, lcd, point{x, y}, min, max})
+    d := &Digit{index, lcd, point{x, y}, []int{}, []int{}}
+    d.min = make([]int, segments, segments)
+    d.max = make([]int, segments, segments)
+    for i := 0; i < segments; i++ {
+        d.min[i] = min
+        d.max[i] = max
+    }
+    l.digits = append(l.digits, d)
     return index, nil
 }
 
@@ -178,27 +182,20 @@ func (l *LcdDecoder) Decode(img image.Image) ([]string, []bool) {
     for _, d := range l.digits {
         lcd := d.lcd
         // Find off point.
-        off := takeSample(img, d, lcd.off)
-        var decimal bool = false
+        off := scaledSample(img, d, lcd.off, 0, 0x10000)
         lookup := 0
         p := make([]int, len(lcd.segments))
         on := l.threshold
         //fmt.Printf("Digit %d Max = %d, Min = %d, On = %d, off = %d\n", i, d.max, d.min, on, off)
         for seg, s := range lcd.segments {
-            p[seg] = takeSample(img, d, s)
+            p[seg] = scaledSample(img, d, s, d.min[seg], d.max[seg])
             if p[seg] >= on {
                 lookup |= 1 << uint(seg)
             }
         }
-        if len(lcd.decimal) != 0 && on >= takeSample(img, d, lcd.decimal) {
-            decimal = true
-        }
         result, found := resultTable[lookup]
         if !found {
             fmt.Printf("Element not found, on = %d, off = %d, pixels: %v\n", on, off, p)
-        }
-        if decimal {
-            result = result + "."
         }
         strs = append(strs, result)
         ok = append(ok, found)
@@ -334,38 +331,40 @@ func moveCorner(n []point, o []point, corner int, opps int, offset int) {
 // Return an average of the sampled points as a int
 // between 0 and 100, where 0 is lightest and 100 is darkest using
 // the scale provided.
-func takeSample(img image.Image, d *Digit, slist sample) int {
-    //var acc int
+func scaledSample(img image.Image, d *Digit, slist sample, min, max int) int {
+    gscaled := rawSample(img, d, slist)
+    if gscaled < min {
+        gscaled = min
+    }
+    if gscaled >= max {
+        gscaled = max - 1
+    }
+    gpscale := (gscaled - min) * 100 / (max - min)
+    //fmt.Printf("grey = %d, len = %d, result = %d, (%d%%)\n", gacc, len(slist), gscaled, gpscale)
+    return gpscale
+}
+
+// Take a raw sample.
+func rawSample(img image.Image, d *Digit, slist sample) int {
     var gacc int
     for _, s := range slist {
         c := img.At(d.pos.x + s.x, d.pos.y + s.y)
-        //r, g, b, _ := c.RGBA()
-        //p := ((r + g + b) * 100) / max
-        //acc += int(r) + int(g) + int(b)
         pix := color.Gray16Model.Convert(c).(color.Gray16)
         gacc += int(pix.Y)
-        //fmt.Printf("rgb = %d, %d %d (%d%%), grey %d (%d%%)\n", r, g, b, p,
-            //pix.Y, (int(pix.Y) * 100) / 0x10000)
     }
-    //scaled := 0x10000 - acc / (len(slist) * 3)
-    //if scaled < d.min {
-        //scaled = d.min
-    //}
-    //if scaled >= d.max {
-        //scaled = d.max - 1
-    //}
-    gscaled := 0x10000 - gacc / len(slist)
-    if gscaled < d.min {
-        gscaled = d.min
+    return 0x10000 - gacc / len(slist)
+}
+
+func (l *LcdDecoder) Calibrate(img image.Image) {
+    for _, d := range l.digits {
+        lcd := d.lcd
+        // Find off point.
+        min := rawSample(img, d, lcd.off)
+        for seg, s := range lcd.segments {
+            d.min[seg] = min
+            d.max[seg] = rawSample(img, d, s)
+        }
     }
-    if gscaled >= d.max {
-        gscaled = d.max - 1
-    }
-    //pscale := (scaled - d.min) * 100 / (d.max - d.min)
-    gpscale := (gscaled - d.min) * 100 / (d.max - d.min)
-    //fmt.Printf("acc = %d, len = %d, result = %d, (%d%%)\n", acc, len(slist), scaled, pscale)
-    //fmt.Printf("grey = %d, len = %d, result = %d, (%d%%)\n", gacc, len(slist), gscaled, gpscale)
-    return gpscale
 }
 
 // Mark the samples with a red cross.
@@ -381,9 +380,6 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA) {
             drawCross(img, d, lcd.scaled, blue)
         }
         drawPoint(img, d, lcd.off, green)
-        if len(lcd.decimal) != 0 {
-            drawPoint(img, d, lcd.decimal, red)
-        }
         for _, s := range lcd.segments {
             drawPoint(img, d, s, red)
         }
