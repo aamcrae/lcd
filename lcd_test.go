@@ -4,13 +4,14 @@ import (
     "testing"
 
     "fmt"
-    "github.com/aamcrae/config"
-    "github.com/aamcrae/MeterMan/lcd"
     "image"
     "image/jpeg"
     "os"
     "path/filepath"
     "strings"
+
+    "github.com/aamcrae/config"
+    "github.com/aamcrae/MeterMan/lcd"
 )
 
 func TestImg1(t *testing.T) {
