@@ -47,6 +47,13 @@ func lcdReader(conf *config.Config, wr chan<- core.Input) error {
         }
         r.Calibrate(img)
     }
+    core.AddGauge("TP")
+    core.AddAccum("IN")
+    core.AddAccum("OUT")
+    core.AddSubAccum("IMP")
+    core.AddSubAccum("IMP")
+    core.AddSubAccum("EXP")
+    core.AddSubAccum("EXP")
     go runReader(r, source, angle, wr)
     return nil
 }

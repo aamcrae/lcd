@@ -36,10 +36,10 @@ var measures map [string]measure = map[string]measure {
     "1NtL": measure{handlerNumber, 100.0, "OUT"},
     "tP  ": measure{handlerNumber, 10000.0, "TP"},
     "EHtL": measure{handlerNumber, 100.0, "IN"},
-    "EHL1": measure{handlerNumber, 100.0, "IN-1"},
-    "EHL2": measure{handlerNumber, 100.0, "IN-2"},
-    "1NL1": measure{handlerNumber, 100.0, "OUT-1"},
-    "1NL2": measure{handlerNumber, 100.0, "OUT-2"},
+    "EHL1": measure{handlerNumber, 100.0, "IMP-0"},
+    "EHL2": measure{handlerNumber, 100.0, "IMP-1"},
+    "1NL1": measure{handlerNumber, 100.0, "EXP-0"},
+    "1NL2": measure{handlerNumber, 100.0, "EXP-1"},
     "8888": measure{handlerCalibrate, 1.0, ""},
 }
 
