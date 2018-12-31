@@ -1,6 +1,7 @@
 package lcd
 
 import (
+    "flag"
     "fmt"
     "image"
     "log"
@@ -10,6 +11,8 @@ import (
 
     "github.com/aamcrae/config"
 )
+
+var recalibrate = flag.Bool("recalibrate", false, "Recalibrate with new image")
 
 const calibrateDelay = time.Minute * 10
 
@@ -108,7 +111,9 @@ func handlerNumber(r *Reader) (string, float64, error) {
 func handlerCalibrate(r *Reader) (string, float64, error) {
     if r.value == "88888888" {
         SaveImage("/tmp/cal.jpg", r.current)
-        r.Calibrate(r.current)
+        if *recalibrate {
+            r.Calibrate(r.current)
+        }
     }
     return "", 0.0, nil
 }
