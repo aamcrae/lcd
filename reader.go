@@ -10,6 +10,7 @@ import (
     "time"
 
     "github.com/aamcrae/config"
+    "github.com/aamcrae/MeterMan/core"
 )
 
 var recalibrate = flag.Bool("recalibrate", false, "Recalibrate with new image")
@@ -36,13 +37,13 @@ var measures map [string]measure = map[string]measure {
     "1nP1": measure{handlerNumber, 100.0, "IN-P1"},
     "1nP2": measure{handlerNumber, 100.0, "IN-P2"},
     "t1NE": measure{handlerIgnore, 1.0, "TIME"},
-    "1NtL": measure{handlerNumber, 100.0, "OUT"},
-    "tP  ": measure{handlerNumber, 10000.0, "TP"},
-    "EHtL": measure{handlerNumber, 100.0, "IN"},
-    "EHL1": measure{handlerNumber, 100.0, "IMP-0"},
-    "EHL2": measure{handlerNumber, 100.0, "IMP-1"},
-    "1NL1": measure{handlerNumber, 100.0, "EXP-0"},
-    "1NL2": measure{handlerNumber, 100.0, "EXP-1"},
+    "1NtL": measure{handlerNumber, 100.0, core.A_OUT_TOTAL},
+    "tP  ": measure{handlerNumber, 10000.0, core.G_TP},
+    "EHtL": measure{handlerNumber, 100.0, core.A_IN_TOTAL},
+    "EHL1": measure{handlerNumber, 100.0, core.A_IMPORT + "-0"},
+    "EHL2": measure{handlerNumber, 100.0, core.A_IMPORT + "-1"},
+    "1NL1": measure{handlerNumber, 100.0, core.A_EXPORT + "-0"},
+    "1NL2": measure{handlerNumber, 100.0, core.A_EXPORT + "-1"},
     "8888": measure{handlerCalibrate, 1.0, ""},
 }
 
