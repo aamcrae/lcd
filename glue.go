@@ -62,6 +62,8 @@ func runReader(r *Reader, source string, angle float64, wr chan<- core.Input) {
     delay := time.Duration(*sampleTime) * time.Second
     lastTime := time.Now()
     for {
+        time.Sleep(delay - time.Now().Sub(lastTime))
+        lastTime = time.Now()
         img, err := GetSource(source)
         if err != nil {
             log.Printf("Failed to retrieve source image from %s: %v", source, err)
@@ -77,7 +79,5 @@ func runReader(r *Reader, source string, angle float64, wr chan<- core.Input) {
         } else if len(tag) > 0 {
             wr <- core.Input{tag, val}
         }
-        time.Sleep(delay - time.Now().Sub(lastTime))
-        lastTime = time.Now()
     }
 }
