@@ -13,7 +13,7 @@ import (
 
 var saveBad = flag.Bool("savebad", false, "Save each bad image")
 var badFile = flag.String("bad", "/tmp/bad.jpg", "Bad images")
-var sampleTime = flag.Int("sample", 2, "Sample time (seconds)")
+var sampleTime = flag.Int("sample", 3, "Sample time (seconds)")
 
 
 func init() {
