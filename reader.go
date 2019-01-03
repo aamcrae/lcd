@@ -40,10 +40,10 @@ var measures map [string]measure = map[string]measure {
     "1NtL": measure{handlerNumber, 100.0, core.A_OUT_TOTAL},
     "tP  ": measure{handlerNumber, 10000.0, core.G_TP},
     "EHtL": measure{handlerNumber, 100.0, core.A_IN_TOTAL},
-    "EHL1": measure{handlerNumber, 100.0, core.A_IMPORT + "-0"},
-    "EHL2": measure{handlerNumber, 100.0, core.A_IMPORT + "-1"},
-    "1NL1": measure{handlerNumber, 100.0, core.A_EXPORT + "-0"},
-    "1NL2": measure{handlerNumber, 100.0, core.A_EXPORT + "-1"},
+    "EHL1": measure{handlerNumber, 100.0, core.A_IMPORT + "/0"},
+    "EHL2": measure{handlerNumber, 100.0, core.A_IMPORT + "/1"},
+    "1NL1": measure{handlerNumber, 100.0, core.A_EXPORT + "/0"},
+    "1NL2": measure{handlerNumber, 100.0, core.A_EXPORT + "/1"},
     "8888": measure{handlerCalibrate, 1.0, ""},
 }
 
