@@ -27,10 +27,10 @@ var tagMap map[string]string = map[string]string {
 }
 
 func init() {
-    core.RegisterReader(lcdReader)
+    core.RegisterReader(meterReader)
 }
 
-func lcdReader(conf *config.Config, wr chan<- core.Input) error {
+func meterReader(conf *config.Config, wr chan<- core.Input) error {
     log.Printf("Registered LCD decoder as reader\n")
     var angle float64
     a, err := conf.GetArg("rotate")
