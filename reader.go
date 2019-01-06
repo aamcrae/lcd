@@ -17,34 +17,39 @@ var recalibrate = flag.Bool("recalibrate", false, "Recalibrate with new image")
 
 const calibrateDelay = time.Minute * 10
 
+type limit struct {
+    last time.Time
+    value float64
+}
+
 type Reader struct {
     conf *config.Config
     decoder *LcdDecoder
     current image.Image
-    key string
-    value string
-    m measure
     lastCalibration time.Time
+    limits map[string]limit
 }
 
 type measure struct {
-    handler func (*Reader) (string, float64, error)
+    handler func (*Reader, *measure, string, string) (string, float64, error)
     scale float64
     tag string
+    min float64     // Valid minimum
+    max float64     // Valid maximum (or hourly max increase)
 }
 
-var measures map [string]measure = map[string]measure {
-    "1nP1": measure{handlerNumber, 100.0, "IN-P1"},
-    "1nP2": measure{handlerNumber, 100.0, "IN-P2"},
-    "t1NE": measure{handlerIgnore, 1.0, "TIME"},
-    "1NtL": measure{handlerNumber, 100.0, core.A_OUT_TOTAL},
-    "tP  ": measure{handlerNumber, 10000.0, core.G_TP},
-    "EHtL": measure{handlerNumber, 100.0, core.A_IN_TOTAL},
-    "EHL1": measure{handlerNumber, 100.0, core.A_IMPORT + "/0"},
-    "EHL2": measure{handlerNumber, 100.0, core.A_IMPORT + "/1"},
-    "1NL1": measure{handlerNumber, 100.0, core.A_EXPORT + "/0"},
-    "1NL2": measure{handlerNumber, 100.0, core.A_EXPORT + "/1"},
-    "8888": measure{handlerCalibrate, 1.0, ""},
+var measures map [string]*measure = map[string]*measure {
+    "1nP1": &measure{handlerIgnore, 1.0, "IN-P1", 0, 0},
+    "1nP2": &measure{handlerIgnore, 1.0, "IN-P2", 0, 0},
+    "t1NE": &measure{handlerIgnore, 1.0, "TIME", 0, 0},
+    "1NtL": &measure{handlerAccum, 100.0, core.A_OUT_TOTAL, 0, 11},     // KwH
+    "tP  ": &measure{handlerNumber, 10000.0, core.G_TP, -6, 15},        // Kw
+    "EHtL": &measure{handlerAccum, 100.0, core.A_IN_TOTAL, 0, 20},      // KwH
+    "EHL1": &measure{handlerAccum, 100.0, core.A_IMPORT + "/0", 0, 20}, // KwH
+    "EHL2": &measure{handlerAccum, 100.0, core.A_IMPORT + "/1", 0, 20}, // KwH
+    "1NL1": &measure{handlerAccum, 100.0, core.A_EXPORT + "/0", 0, 11}, // KwH
+    "1NL2": &measure{handlerAccum, 100.0, core.A_EXPORT + "/1", 0, 11}, // KwH
+    "8888": &measure{handlerCalibrate, 1.0, "", 0, 0},
 }
 
 func NewReader(c *config.Config) (*Reader, error) {
@@ -52,7 +57,7 @@ func NewReader(c *config.Config) (*Reader, error) {
     if  err != nil {
         return nil, err
     }
-    return &Reader{conf:c, decoder:d}, nil
+    return &Reader{conf:c, decoder:d, limits:map[string]limit{}}, nil
 }
 
 func (r *Reader) Calibrate(img image.Image) {
@@ -85,36 +90,70 @@ func (r *Reader) Read(img image.Image) (string, float64, error) {
     if !ok {
         return "", 0.0, fmt.Errorf("Unknown key (%s) value %s", key, value)
     }
-    r.key = key
-    r.value = value
-    r.m = m
-    return r.m.handler(r)
+    handler := m.handler
+    return handler(r, m, key, value)
 }
 
-func handlerIgnore(r *Reader) (string, float64, error) {
+func handlerIgnore(r *Reader, m *measure, key, value string) (string, float64, error) {
     return "", 0.0, nil
 }
 
-func handlerNumber(r *Reader) (string, float64, error) {
-    sv := r.value
-    scale := r.m.scale
-    if sv[0] == '-' {
-        scale = -scale
-        sv = sv[1:]
-    }
-    v, err := strconv.ParseFloat(strings.Trim(sv, " "), 64)
+func handlerNumber(r *Reader, m *measure, key, value string) (string, float64, error) {
+    v, err := r.getNumber(m, value)
     if err != nil {
-        return "", 0.0, fmt.Errorf("Bad number (%v): %s for %s\n", err, r.value, r.key)
+        return "", 0, fmt.Errorf("key %s: %v", key, err)
     }
-    return r.m.tag, v / scale, nil
+    if v < m.min || v >= m.max {
+        return "", 0, fmt.Errorf("%s Out of range (%f)", key, v)
+    }
+    log.Printf("Meter read: key %s value %f, min %f, max %f\n", key, v, m.min, m.max)
+    return m.tag, v, nil
 }
 
-func handlerCalibrate(r *Reader) (string, float64, error) {
-    if r.value == "88888888" {
+func handlerAccum(r *Reader, m *measure, key, value string) (string, float64, error) {
+    v, err := r.getNumber(m, value)
+    if err != nil {
+        return "", 0, fmt.Errorf("key %s: %v", key, err)
+    }
+    lv, ok := r.limits[key]
+    now := time.Now()
+    if ok {
+        diff := (v - lv.value) * 3600 / now.Sub(lv.last).Seconds()
+         if diff < 0 {
+            return "", 0.0, fmt.Errorf("%s Going backwards (old %f, new %f)", key, lv.last, v)
+        }
+        // Calculate and compare hourly change.
+        if diff > m.max {
+            return "", 0.0, fmt.Errorf("%s limit exceeded (old %f, change = %f, limit = %f)", key, lv.value, diff, m.max)
+        }
+        if *core.Verbose {
+            log.Printf("Meter read: key %s value %f, change %f, max %f\n", key, v, diff, m.max)
+        }
+    }
+    r.limits[key] = limit{now, v}
+    return m.tag, v, nil
+}
+
+func handlerCalibrate(r *Reader, m *measure, key, value string) (string, float64, error) {
+    if value == "88888888" {
         SaveImage("/tmp/cal.jpg", r.current)
         if *recalibrate {
             r.Calibrate(r.current)
         }
     }
     return "", 0.0, nil
+}
+
+func (*Reader) getNumber(m *measure, value string) (float64, error) {
+    sv := value
+    scale := m.scale
+    if sv[0] == '-' {
+        scale = -scale
+       sv = sv[1:]
+    }
+    v, err := strconv.ParseFloat(strings.Trim(sv, " "), 64)
+    if err != nil {
+        return 0, fmt.Errorf("%s: bad number (%v)\n", value, err)
+    }
+    return v / scale, nil
 }
