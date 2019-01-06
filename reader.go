@@ -10,7 +10,6 @@ import (
     "time"
 
     "github.com/aamcrae/config"
-    "github.com/aamcrae/MeterMan/core"
 )
 
 var recalibrate = flag.Bool("recalibrate", false, "Recalibrate with new image")
@@ -23,7 +22,7 @@ type limit struct {
 }
 
 type Reader struct {
-    conf *config.Config
+    trace bool
     decoder *LcdDecoder
     current image.Image
     lastCalibration time.Time
@@ -33,31 +32,30 @@ type Reader struct {
 type measure struct {
     handler func (*Reader, *measure, string, string) (string, float64, error)
     scale float64
-    tag string
     min float64     // Valid minimum
     max float64     // Valid maximum (or hourly max increase)
 }
 
 var measures map [string]*measure = map[string]*measure {
-    "1nP1": &measure{handlerIgnore, 1.0, "IN-P1", 0, 0},
-    "1nP2": &measure{handlerIgnore, 1.0, "IN-P2", 0, 0},
-    "t1NE": &measure{handlerIgnore, 1.0, "TIME", 0, 0},
-    "1NtL": &measure{handlerAccum, 100.0, core.A_OUT_TOTAL, 0, 11},     // KwH
-    "tP  ": &measure{handlerNumber, 10000.0, core.G_TP, -6, 15},        // Kw
-    "EHtL": &measure{handlerAccum, 100.0, core.A_IN_TOTAL, 0, 20},      // KwH
-    "EHL1": &measure{handlerAccum, 100.0, core.A_IMPORT + "/0", 0, 20}, // KwH
-    "EHL2": &measure{handlerAccum, 100.0, core.A_IMPORT + "/1", 0, 20}, // KwH
-    "1NL1": &measure{handlerAccum, 100.0, core.A_EXPORT + "/0", 0, 11}, // KwH
-    "1NL2": &measure{handlerAccum, 100.0, core.A_EXPORT + "/1", 0, 11}, // KwH
-    "8888": &measure{handlerCalibrate, 1.0, "", 0, 0},
+    "1nP1": &measure{handlerIgnore, 1.0, 0, 0},
+    "1nP2": &measure{handlerIgnore, 1.0, 0, 0},
+    "t1NE": &measure{handlerIgnore, 1.0, 0, 0},
+    "1NtL": &measure{handlerAccum, 100.0, 0, 11},     // KwH
+    "tP  ": &measure{handlerNumber, 10000.0, -6, 15},        // Kw
+    "EHtL": &measure{handlerAccum, 100.0, 0, 20},      // KwH
+    "EHL1": &measure{handlerAccum, 100.0, 0, 20}, // KwH
+    "EHL2": &measure{handlerAccum, 100.0, 0, 20}, // KwH
+    "1NL1": &measure{handlerAccum, 100.0, 0, 11}, // KwH
+    "1NL2": &measure{handlerAccum, 100.0, 0, 11}, // KwH
+    "8888": &measure{handlerCalibrate, 1.0, 0, 0},
 }
 
-func NewReader(c *config.Config) (*Reader, error) {
+func NewReader(c *config.Config, trace bool) (*Reader, error) {
     d, err := CreateLcdDecoder(c)
     if  err != nil {
         return nil, err
     }
-    return &Reader{conf:c, decoder:d, limits:map[string]limit{}}, nil
+    return &Reader{trace:trace, decoder:d, limits:map[string]limit{}}, nil
 }
 
 func (r *Reader) Calibrate(img image.Image) {
@@ -107,7 +105,7 @@ func handlerNumber(r *Reader, m *measure, key, value string) (string, float64, e
         return "", 0, fmt.Errorf("%s Out of range (%f)", key, v)
     }
     log.Printf("Meter read: key %s value %f, min %f, max %f\n", key, v, m.min, m.max)
-    return m.tag, v, nil
+    return key, v, nil
 }
 
 func handlerAccum(r *Reader, m *measure, key, value string) (string, float64, error) {
@@ -126,12 +124,12 @@ func handlerAccum(r *Reader, m *measure, key, value string) (string, float64, er
         if diff > m.max {
             return "", 0.0, fmt.Errorf("%s limit exceeded (old %f, change = %f, limit = %f)", key, lv.value, diff, m.max)
         }
-        if *core.Verbose {
+        if r.trace {
             log.Printf("Meter read: key %s value %f, change %f, max %f\n", key, v, diff, m.max)
         }
     }
     r.limits[key] = limit{now, v}
-    return m.tag, v, nil
+    return key, v, nil
 }
 
 func handlerCalibrate(r *Reader, m *measure, key, value string) (string, float64, error) {

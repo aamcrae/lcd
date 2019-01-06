@@ -15,6 +15,16 @@ var saveBad = flag.Bool("savebad", false, "Save each bad image")
 var badFile = flag.String("bad", "/tmp/bad.jpg", "Bad images")
 var sampleTime = flag.Int("sample", 3, "Sample time (seconds)")
 
+// Maps meter label to tag.
+var tagMap map[string]string = map[string]string {
+    "1NtL": core.A_OUT_TOTAL,
+    "tP  ": core.G_TP,
+    "EHtL": core.A_IN_TOTAL,
+    "EHL1": core.A_IMPORT + "/0",
+    "EHL2": core.A_IMPORT + "/1",
+    "1NL1": core.A_EXPORT + "/0",
+    "1NL2": core.A_EXPORT + "/1",
+}
 
 func init() {
     core.RegisterReader(lcdReader)
@@ -35,7 +45,7 @@ func lcdReader(conf *config.Config, wr chan<- core.Input) error {
     if err != nil {
         return err
     }
-    r, err := NewReader(conf)
+    r, err := NewReader(conf, *core.Verbose)
     if  err != nil {
         return err
     }
@@ -70,14 +80,19 @@ func runReader(r *Reader, source string, angle float64, wr chan<- core.Input) {
             continue
         }
         img = RotateImage(img, angle)
-        tag, val, err := r.Read(img)
+        label, val, err := r.Read(img)
         if err != nil {
             log.Printf("Read error: %v", err)
             if *saveBad {
                 SaveImage(*badFile, img)
             }
-        } else if len(tag) > 0 {
-            wr <- core.Input{tag, val}
+        } else {
+            tag, ok := tagMap[label]
+            if !ok {
+                log.Printf("Unknown meter label: %s\n", label)
+            } else {
+                wr <- core.Input{tag, val}
+            }
         }
     }
 }
