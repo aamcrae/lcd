@@ -86,7 +86,7 @@ func runReader(r *Reader, source string, angle float64, wr chan<- core.Input) {
             if *saveBad {
                 SaveImage(*badFile, img)
             }
-        } else {
+        } else if len(label) > 0 {
             tag, ok := tagMap[label]
             if !ok {
                 log.Printf("Unknown meter label: %s\n", label)
