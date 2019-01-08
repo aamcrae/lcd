@@ -57,12 +57,12 @@ func meterReader(conf *config.Config, wr chan<- core.Input) error {
 		r.Calibrate(img)
 	}
 	core.AddGauge(core.G_TP)
-	core.AddAccum(core.A_IN_TOTAL)
-	core.AddAccum(core.A_OUT_TOTAL)
-	core.AddSubAccum(core.A_IMPORT)
-	core.AddSubAccum(core.A_IMPORT)
-	core.AddSubAccum(core.A_EXPORT)
-	core.AddSubAccum(core.A_EXPORT)
+	core.AddAccum(core.A_IN_TOTAL, false)
+	core.AddAccum(core.A_OUT_TOTAL, false)
+	core.AddSubAccum(core.A_IMPORT, false)
+	core.AddSubAccum(core.A_IMPORT, false)
+	core.AddSubAccum(core.A_EXPORT, false)
+	core.AddSubAccum(core.A_EXPORT, false)
 	go runReader(r, source, angle, wr)
 	return nil
 }
