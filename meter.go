@@ -78,7 +78,9 @@ func runReader(r *Reader, source string, angle float64, wr chan<- core.Input) {
 			log.Printf("Failed to retrieve source image from %s: %v", source, err)
 			continue
 		}
-		img = RotateImage(img, angle)
+        if angle != 0 {
+		    img = RotateImage(img, angle)
+        }
 		label, val, err := r.Read(img)
 		if err != nil {
 			log.Printf("Read error: %v", err)

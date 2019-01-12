@@ -12,14 +12,25 @@ const defaultThreshold = 50
 const shrinkBB = false
 const offMargin = 4
 const onMargin = 2
-const segments = 7
 
-// Corners.
+// Bounding box
 const (
-	TL = 0
-	TR = 1
-	BR = 2
-	BL = 3
+    TL = iota
+    TR = iota
+    BR = iota
+    BL = iota
+)
+
+// Segments.
+const (
+	S_TL, M_TL = iota, 1 << iota    // Top left
+	S_T , M_T  = iota, 1 << iota    // Top
+	S_TR, M_TR = iota, 1 << iota    // Top right
+	S_BR, M_BR = iota, 1 << iota    // Bottom right
+	S_B , M_B  = iota, 1 << iota    // Bottom
+	S_BL, M_BL = iota, 1 << iota    // Bottom left
+	S_M , M_M  = iota, 1 << iota    // Middle
+    SEGMENTS = iota
 )
 
 type point struct {
@@ -53,55 +64,38 @@ type LcdDecoder struct {
 }
 
 // There are 128 possible values in a 7 segment display,
-// and this table maps known values to a string result.
-// The segments are used as a bit in 7 bit value, and mapped as:
-// top left     bit 0
-// top          bit 1
-// top right    bit 2
-// bottom right bit 3
-// bottom       bit 4
-// bottom left  bit 5
-// middle       bit 6
-const (
-	X    = 0
-	s_tl = 1
-	s_t  = 2
-	s_tr = 4
-	s_br = 8
-	s_b  = 0x10
-	s_bl = 0x20
-	s_m  = 0x40
-)
+// and this table maps selected values to a string result.
+const X = 0
 
 var resultTable = map[int]string{
-	X | X | X | X | X | X | X:                   " ",
-	X | X | X | X | X | X | s_m:                 "-",
-	s_tl | s_t | s_tr | s_br | s_b | s_bl | X:   "0",
-	X | X | s_tr | s_br | X | X | X:             "1",
-	X | s_t | s_tr | X | s_b | s_bl | s_m:       "2",
-	X | s_t | s_tr | s_br | s_b | X | s_m:       "3",
-	s_tl | X | s_tr | s_br | X | X | s_m:        "4",
-	s_tl | s_t | X | s_br | s_b | X | s_m:       "5",
-	s_tl | s_t | X | s_br | s_b | s_bl | s_m:    "6",
-	s_tl | s_t | s_tr | s_br | X | X | X:        "7",
-	X | s_t | s_tr | s_br | X | X | X:           "7",
-	s_tl | s_t | s_tr | s_br | s_b | s_bl | s_m: "8",
-	s_tl | s_t | s_tr | s_br | s_b | X | s_m:    "9",
-	s_tl | s_t | s_tr | s_br | X | s_bl | s_m:   "A",
-	s_tl | X | X | s_br | s_b | s_bl | s_m:      "b",
-	s_tl | s_t | X | X | s_b | s_bl | X:         "C",
-	X | X | s_tr | s_br | s_b | s_bl | s_m:      "d",
-	s_tl | s_t | X | X | s_b | s_bl | s_m:       "E",
-	s_tl | s_t | X | X | X | s_bl | s_m:         "F",
-	s_tl | X | X | s_br | X | s_bl | s_m:        "h",
-	s_tl | X | s_tr | s_br | X | s_bl | s_m:     "H",
-	s_tl | X | X | X | s_b | s_bl | X:           "L",
-	s_tl | s_t | s_tr | s_br | X | s_bl | X:     "N",
-	X | X | X | s_br | X | s_bl | s_m:           "n",
-	X | X | X | s_br | s_b | s_bl | s_m:         "o",
-	s_tl | s_t | s_tr | X | X | s_bl | s_m:      "P",
-	X | X | X | X | X | s_bl | s_m:              "r",
-	s_tl | X | X | X | s_b | s_bl | s_m:         "t",
+	 X   |  X   |  X   |  X   |  X   |  X   |  X  : " ",
+	 X   |  X   |  X   |  X   |  X   |  X   | M_M : "-",
+	M_TL | M_T  | M_TR | M_BR | M_B  | M_BL |  X  : "0",
+	 X   |  X   | M_TR | M_BR |  X   |  X   |  X  : "1",
+	 X   | M_T  | M_TR |  X   | M_B  | M_BL | M_M : "2",
+	 X   | M_T  | M_TR | M_BR | M_B  |  X   | M_M : "3",
+	M_TL |  X   | M_TR | M_BR |  X   |  X   | M_M : "4",
+	M_TL | M_T  |  X   | M_BR | M_B  |  X   | M_M : "5",
+	M_TL | M_T  |  X   | M_BR | M_B  | M_BL | M_M : "6",
+	M_TL | M_T  | M_TR | M_BR |  X   |  X   |  X  : "7",
+	 X   | M_T  | M_TR | M_BR |  X   |  X   |  X  : "7",
+	M_TL | M_T  | M_TR | M_BR | M_B  | M_BL | M_M : "8",
+	M_TL | M_T  | M_TR | M_BR | M_B  |  X   | M_M : "9",
+	M_TL | M_T  | M_TR | M_BR |  X   | M_BL | M_M : "A",
+	M_TL |  X   |  X   | M_BR | M_B  | M_BL | M_M : "b",
+	M_TL | M_T  |  X   |  X   | M_B  | M_BL |  X  : "C",
+	 X   |  X   | M_TR | M_BR | M_B  | M_BL | M_M : "d",
+	M_TL | M_T  |  X   |  X   | M_B  | M_BL | M_M : "E",
+	M_TL | M_T  |  X   |  X   |  X   | M_BL | M_M : "F",
+	M_TL |  X   |  X   | M_BR |  X   | M_BL | M_M : "h",
+	M_TL |  X   | M_TR | M_BR |  X   | M_BL | M_M : "H",
+	M_TL |  X   |  X   |  X   | M_B  | M_BL |  X  : "L",
+	M_TL | M_T  | M_TR | M_BR |  X   | M_BL |  X  : "N",
+	 X   |  X   |  X   | M_BR |  X   | M_BL | M_M : "n",
+	 X   |  X   |  X   | M_BR | M_B  | M_BL | M_M : "o",
+	M_TL | M_T  | M_TR |  X   |  X   | M_BL | M_M : "P",
+	 X   |  X   |  X   |  X   |  X   | M_BL | M_M : "r",
+	M_TL |  X   |  X   |  X   | M_B  | M_BL | M_M : "t",
 }
 
 func NewLcdDecoder() *LcdDecoder {
@@ -134,23 +128,16 @@ func (l *LcdDecoder) AddLCD(name string, bb []int, width int) error {
 	// Build the 'off' sample using the middle blocks.
 	lcd.off = buildOff(tl, tr, bmr, bml, width)
 	lcd.off = append(lcd.off, buildOff(tml, tmr, br, bl, width)...)
-	lcd.segments = make([]sample, segments)
+	lcd.segments = make([]sample, SEGMENTS)
 	// The assignments must match the bit allocation in
 	// the lookup table.
-	// Top left
-	lcd.segments[0] = vertical(tl, bml, width)
-	// Top
-	lcd.segments[1] = horiz(tl, tr, width)
-	// Top right
-	lcd.segments[2] = vertical(tr, bmr, -width)
-	// Bottom right
-	lcd.segments[3] = vertical(tmr, br, -width)
-	// Bottom
-	lcd.segments[4] = horiz(bl, br, -width)
-	// Bottom left
-	lcd.segments[5] = vertical(tml, bl, width)
-	// Middle
-	lcd.segments[6] = horiz(tml, tmr, width)
+	lcd.segments[S_TL] = vertical(tl, bml, width)
+	lcd.segments[S_T] = horiz(tl, tr, width)
+	lcd.segments[S_TR] = vertical(tr, bmr, -width)
+	lcd.segments[S_BR] = vertical(tmr, br, -width)
+	lcd.segments[S_B] = horiz(bl, br, -width)
+	lcd.segments[S_BL] = vertical(tml, bl, width)
+	lcd.segments[S_M] = horiz(tml, tmr, width)
 	l.lcdMap[name] = lcd
 	return nil
 }
@@ -162,9 +149,9 @@ func (l *LcdDecoder) AddDigit(name string, x, y, min, max int) (int, error) {
 	}
 	index := len(l.digits)
 	d := &Digit{index, lcd, point{x, y}, []int{}, []int{}}
-	d.min = make([]int, segments, segments)
-	d.max = make([]int, segments, segments)
-	for i := 0; i < segments; i++ {
+	d.min = make([]int, SEGMENTS, SEGMENTS)
+	d.max = make([]int, SEGMENTS, SEGMENTS)
+	for i := 0; i < SEGMENTS; i++ {
 		d.min[i] = min
 		d.max[i] = max
 	}
