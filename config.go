@@ -2,8 +2,9 @@ package lcd
 
 import (
 	"fmt"
-	"github.com/aamcrae/config"
 	"strconv"
+
+	"github.com/aamcrae/config"
 )
 
 func CreateLcdDecoder(conf *config.Config) (*LcdDecoder, error) {
