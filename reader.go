@@ -40,13 +40,13 @@ var measures map[string]*measure = map[string]*measure{
 	"1nP1": &measure{handlerIgnore, 1.0, 0, 0},
 	"1nP2": &measure{handlerIgnore, 1.0, 0, 0},
 	"t1NE": &measure{handlerIgnore, 1.0, 0, 0},
-	"1NtL": &measure{handlerAccum, 100.0, 0, 11},     // KwH
+	"1NtL": &measure{handlerAccum, 100.0, 0, 15},     // KwH
 	"tP  ": &measure{handlerNumber, 10000.0, -6, 15}, // Kw
 	"EHtL": &measure{handlerAccum, 100.0, 0, 20},     // KwH
 	"EHL1": &measure{handlerAccum, 100.0, 0, 20},     // KwH
 	"EHL2": &measure{handlerAccum, 100.0, 0, 20},     // KwH
-	"1NL1": &measure{handlerAccum, 100.0, 0, 11},     // KwH
-	"1NL2": &measure{handlerAccum, 100.0, 0, 11},     // KwH
+	"1NL1": &measure{handlerAccum, 100.0, 0, 15},     // KwH
+	"1NL2": &measure{handlerAccum, 100.0, 0, 15},     // KwH
 	"8888": &measure{handlerCalibrate, 1.0, 0, 0},
 }
 
@@ -104,7 +104,9 @@ func handlerNumber(r *Reader, m *measure, key, value string) (string, float64, e
 	if v < m.min || v >= m.max {
 		return "", 0, fmt.Errorf("%s Out of range (%f)", key, v)
 	}
-	log.Printf("Meter read: key %s value %f, min %f, max %f\n", key, v, m.min, m.max)
+	if r.trace {
+		log.Printf("Meter read: key %s value %f, min %f, max %f\n", key, v, m.min, m.max)
+	}
 	return key, v, nil
 }
 

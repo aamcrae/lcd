@@ -15,22 +15,22 @@ const onMargin = 2
 
 // Bounding box
 const (
-    TL = iota
-    TR = iota
-    BR = iota
-    BL = iota
+	TL = iota
+	TR = iota
+	BR = iota
+	BL = iota
 )
 
 // Segments.
 const (
-	S_TL, M_TL = iota, 1 << iota    // Top left
-	S_T , M_T  = iota, 1 << iota    // Top
-	S_TR, M_TR = iota, 1 << iota    // Top right
-	S_BR, M_BR = iota, 1 << iota    // Bottom right
-	S_B , M_B  = iota, 1 << iota    // Bottom
-	S_BL, M_BL = iota, 1 << iota    // Bottom left
-	S_M , M_M  = iota, 1 << iota    // Middle
-    SEGMENTS = iota
+	S_TL, M_TL = iota, 1 << iota // Top left
+	S_T, M_T   = iota, 1 << iota // Top
+	S_TR, M_TR = iota, 1 << iota // Top right
+	S_BR, M_BR = iota, 1 << iota // Bottom right
+	S_B, M_B   = iota, 1 << iota // Bottom
+	S_BL, M_BL = iota, 1 << iota // Bottom left
+	S_M, M_M   = iota, 1 << iota // Middle
+	SEGMENTS   = iota
 )
 
 type point struct {
@@ -68,34 +68,34 @@ type LcdDecoder struct {
 const X = 0
 
 var resultTable = map[int]string{
-	 X   |  X   |  X   |  X   |  X   |  X   |  X  : " ",
-	 X   |  X   |  X   |  X   |  X   |  X   | M_M : "-",
-	M_TL | M_T  | M_TR | M_BR | M_B  | M_BL |  X  : "0",
-	 X   |  X   | M_TR | M_BR |  X   |  X   |  X  : "1",
-	 X   | M_T  | M_TR |  X   | M_B  | M_BL | M_M : "2",
-	 X   | M_T  | M_TR | M_BR | M_B  |  X   | M_M : "3",
-	M_TL |  X   | M_TR | M_BR |  X   |  X   | M_M : "4",
-	M_TL | M_T  |  X   | M_BR | M_B  |  X   | M_M : "5",
-	M_TL | M_T  |  X   | M_BR | M_B  | M_BL | M_M : "6",
-	M_TL | M_T  | M_TR | M_BR |  X   |  X   |  X  : "7",
-	 X   | M_T  | M_TR | M_BR |  X   |  X   |  X  : "7",
-	M_TL | M_T  | M_TR | M_BR | M_B  | M_BL | M_M : "8",
-	M_TL | M_T  | M_TR | M_BR | M_B  |  X   | M_M : "9",
-	M_TL | M_T  | M_TR | M_BR |  X   | M_BL | M_M : "A",
-	M_TL |  X   |  X   | M_BR | M_B  | M_BL | M_M : "b",
-	M_TL | M_T  |  X   |  X   | M_B  | M_BL |  X  : "C",
-	 X   |  X   | M_TR | M_BR | M_B  | M_BL | M_M : "d",
-	M_TL | M_T  |  X   |  X   | M_B  | M_BL | M_M : "E",
-	M_TL | M_T  |  X   |  X   |  X   | M_BL | M_M : "F",
-	M_TL |  X   |  X   | M_BR |  X   | M_BL | M_M : "h",
-	M_TL |  X   | M_TR | M_BR |  X   | M_BL | M_M : "H",
-	M_TL |  X   |  X   |  X   | M_B  | M_BL |  X  : "L",
-	M_TL | M_T  | M_TR | M_BR |  X   | M_BL |  X  : "N",
-	 X   |  X   |  X   | M_BR |  X   | M_BL | M_M : "n",
-	 X   |  X   |  X   | M_BR | M_B  | M_BL | M_M : "o",
-	M_TL | M_T  | M_TR |  X   |  X   | M_BL | M_M : "P",
-	 X   |  X   |  X   |  X   |  X   | M_BL | M_M : "r",
-	M_TL |  X   |  X   |  X   | M_B  | M_BL | M_M : "t",
+	X | X | X | X | X | X | X:                   " ",
+	X | X | X | X | X | X | M_M:                 "-",
+	M_TL | M_T | M_TR | M_BR | M_B | M_BL | X:   "0",
+	X | X | M_TR | M_BR | X | X | X:             "1",
+	X | M_T | M_TR | X | M_B | M_BL | M_M:       "2",
+	X | M_T | M_TR | M_BR | M_B | X | M_M:       "3",
+	M_TL | X | M_TR | M_BR | X | X | M_M:        "4",
+	M_TL | M_T | X | M_BR | M_B | X | M_M:       "5",
+	M_TL | M_T | X | M_BR | M_B | M_BL | M_M:    "6",
+	M_TL | M_T | M_TR | M_BR | X | X | X:        "7",
+	X | M_T | M_TR | M_BR | X | X | X:           "7",
+	M_TL | M_T | M_TR | M_BR | M_B | M_BL | M_M: "8",
+	M_TL | M_T | M_TR | M_BR | M_B | X | M_M:    "9",
+	M_TL | M_T | M_TR | M_BR | X | M_BL | M_M:   "A",
+	M_TL | X | X | M_BR | M_B | M_BL | M_M:      "b",
+	M_TL | M_T | X | X | M_B | M_BL | X:         "C",
+	X | X | M_TR | M_BR | M_B | M_BL | M_M:      "d",
+	M_TL | M_T | X | X | M_B | M_BL | M_M:       "E",
+	M_TL | M_T | X | X | X | M_BL | M_M:         "F",
+	M_TL | X | X | M_BR | X | M_BL | M_M:        "h",
+	M_TL | X | M_TR | M_BR | X | M_BL | M_M:     "H",
+	M_TL | X | X | X | M_B | M_BL | X:           "L",
+	M_TL | M_T | M_TR | M_BR | X | M_BL | X:     "N",
+	X | X | X | M_BR | X | M_BL | M_M:           "n",
+	X | X | X | M_BR | M_B | M_BL | M_M:         "o",
+	M_TL | M_T | M_TR | X | X | M_BL | M_M:      "P",
+	X | X | X | X | X | M_BL | M_M:              "r",
+	M_TL | X | X | X | M_B | M_BL | M_M:         "t",
 }
 
 func NewLcdDecoder() *LcdDecoder {
