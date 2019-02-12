@@ -120,7 +120,7 @@ func handlerAccum(r *Reader, m *measure, key, value string) (string, float64, er
 	if ok {
 		diff := (v - lv.value) * 3600 / now.Sub(lv.last).Seconds()
 		if diff < 0 {
-			return "", 0.0, fmt.Errorf("%s Going backwards (old %f, new %f)", key, lv.last, v)
+			return "", 0.0, fmt.Errorf("%s Going backwards (old %f, new %f)", key, lv.value, v)
 		}
 		// Calculate and compare hourly change.
 		if diff > m.max {
