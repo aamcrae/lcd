@@ -30,9 +30,10 @@ func init() {
 }
 
 func meterReader(conf *config.Config, wr chan<- core.Input) error {
+	sect := conf.GetSection("meter")
 	log.Printf("Registered LCD decoder as reader\n")
 	var angle float64
-	a, err := conf.GetArg("rotate")
+	a, err := sect.GetArg("rotate")
 	if err != nil {
 		return err
 	}
@@ -40,15 +41,15 @@ func meterReader(conf *config.Config, wr chan<- core.Input) error {
 	if err != nil {
 		return err
 	}
-	source, err := conf.GetArg("source")
+	source, err := sect.GetArg("source")
 	if err != nil {
 		return err
 	}
-	r, err := NewReader(conf, *core.Verbose)
+	r, err := NewReader(sect, *core.Verbose)
 	if err != nil {
 		return err
 	}
-	s := conf.Get("calibrate")
+	s := sect.Get("calibrate")
 	if len(s) == 1 && len(s[0].Tokens) == 1 {
 		img, err := ReadImage(s[0].Tokens[0])
 		if err != nil {

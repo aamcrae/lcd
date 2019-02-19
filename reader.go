@@ -50,7 +50,7 @@ var measures map[string]*measure = map[string]*measure{
 	"8888": &measure{handlerCalibrate, 1.0, 0, 0},
 }
 
-func NewReader(c *config.Config, trace bool) (*Reader, error) {
+func NewReader(c *config.Section, trace bool) (*Reader, error) {
 	d, err := CreateLcdDecoder(c)
 	if err != nil {
 		return nil, err

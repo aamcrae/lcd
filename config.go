@@ -7,7 +7,7 @@ import (
 	"github.com/aamcrae/config"
 )
 
-func CreateLcdDecoder(conf *config.Config) (*LcdDecoder, error) {
+func CreateLcdDecoder(conf *config.Section) (*LcdDecoder, error) {
 	l := NewLcdDecoder()
 	for _, e := range conf.Get("lcd") {
 		if len(e.Tokens) < 1 {
