@@ -63,6 +63,12 @@ type Lcd struct {
 	segments []sample
 }
 
+// Scale holds the calibrated on/off values for each segment.
+type Scale struct {
+	min []int
+	max []int
+}
+
 type Digit struct {
 	index int
 	lcd   *Lcd
