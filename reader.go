@@ -54,13 +54,13 @@ var measures map[string]*measure = map[string]*measure{
 	"1nP1": &measure{handlerIgnore, 1.0, 0, 0},
 	"1nP2": &measure{handlerIgnore, 1.0, 0, 0},
 	"t1NE": &measure{handlerIgnore, 1.0, 0, 0},
-	"1NtL": &measure{handlerAccum, 100.0, 0, 15},     // KwH
-	"tP  ": &measure{handlerNumber, 10000.0, -6, 15}, // Kw
-	"EHtL": &measure{handlerAccum, 100.0, 0, 20},     // KwH
-	"EHL1": &measure{handlerAccum, 100.0, 0, 20},     // KwH
-	"EHL2": &measure{handlerAccum, 100.0, 0, 20},     // KwH
-	"1NL1": &measure{handlerAccum, 100.0, 0, 15},     // KwH
-	"1NL2": &measure{handlerAccum, 100.0, 0, 15},     // KwH
+	"1NtL": &measure{handlerAccum, 100.0, 0, 0},     // KwH
+	"tP  ": &measure{handlerNumber, 10000.0, 0, 0},  // Kw
+	"EHtL": &measure{handlerAccum, 100.0, 0, 0},     // KwH
+	"EHL1": &measure{handlerAccum, 100.0, 0, 0},     // KwH
+	"EHL2": &measure{handlerAccum, 100.0, 0, 0},     // KwH
+	"1NL1": &measure{handlerAccum, 100.0, 0, 0},     // KwH
+	"1NL2": &measure{handlerAccum, 100.0, 0, 0},     // KwH
 	"8888": &measure{handlerCalibrate, 1.0, 0, 0},
 }
 
@@ -68,6 +68,28 @@ func NewReader(c *config.Section, trace bool) (*Reader, error) {
 	d, err := CreateLcdDecoder(c)
 	if err != nil {
 		return nil, err
+	}
+	for _, e := range c.Get("range") {
+		if len(e.Tokens) != 3 {
+			return nil, fmt.Errorf("Bad 'range' parameters at %s:%d", e.Filename, e.Lineno)
+		}
+		m, ok := measures[e.Tokens[0]]
+		if !ok {
+			return nil, fmt.Errorf("Unknown measurement (%s) at %s:%d", e.Tokens[0], e.Filename, e.Lineno)
+		}
+		min, err := strconv.ParseFloat(e.Tokens[1], 64)
+		if err != nil {
+			return nil, fmt.Errorf("Ilegal min value at %s:%d", e.Tokens[0], e.Filename, e.Lineno)
+		}
+		max, err := strconv.ParseFloat(e.Tokens[2], 64)
+		if err != nil {
+			return nil, fmt.Errorf("Ilegal max value at %s:%d", e.Tokens[0], e.Filename, e.Lineno)
+		}
+		m.min = min
+		m.max = max
+		if trace {
+			log.Printf("Setting range of '%s' to [%f, %f]\n", e.Tokens[0], min, max)
+		}
 	}
 	return &Reader{trace: trace, decoder: d, limits: map[string]limit{}}, nil
 }
