@@ -45,7 +45,9 @@ func init() {
 
 func meterReader(conf *config.Config, wr chan<- core.Input) error {
 	sect := conf.GetSection("meter")
-	log.Printf("Registered LCD decoder as reader\n")
+	if sect == nil {
+		return nil
+	}
 	var angle float64
 	a, err := sect.GetArg("rotate")
 	if err != nil {
@@ -78,6 +80,7 @@ func meterReader(conf *config.Config, wr chan<- core.Input) error {
 	core.AddSubAccum(core.A_IMPORT, false)
 	core.AddSubAccum(core.A_EXPORT, false)
 	core.AddSubAccum(core.A_EXPORT, false)
+	log.Printf("Registered LCD decoder as reader\n")
 	go runReader(r, source, angle, wr)
 	return nil
 }
