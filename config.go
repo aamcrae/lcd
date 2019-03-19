@@ -25,14 +25,14 @@ func CreateLcdDecoder(conf *config.Section) (*LcdDecoder, error) {
 	l := NewLcdDecoder()
 	for _, e := range conf.Get("lcd") {
 		if len(e.Tokens) < 1 {
-			return nil, fmt.Errorf("No config for LCD at line %d", e.Lineno)
+			return nil, fmt.Errorf("No config for template at line %d", e.Lineno)
 		}
 		name := e.Tokens[0]
 		v := readInts(e.Tokens[1:])
 		if len(v) != 7 {
-			return nil, fmt.Errorf("Bad config for LCD at line %d", e.Lineno)
+			return nil, fmt.Errorf("Bad config for template at line %d", e.Lineno)
 		}
-		if err := l.AddLCD(name, v[:6], v[6]); err != nil {
+		if err := l.AddTemplate(name, v[:6], v[6]); err != nil {
 			return nil, fmt.Errorf("Invalid config at line %d: %v", e.Lineno, err)
 		}
 	}
