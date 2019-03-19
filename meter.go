@@ -50,12 +50,11 @@ func meterReader(conf *config.Config, wr chan<- core.Input) error {
 	}
 	var angle float64
 	a, err := sect.GetArg("rotate")
-	if err != nil {
-		return err
-	}
-	angle, err = strconv.ParseFloat(a, 64)
-	if err != nil {
-		return err
+	if err == nil {
+		angle, err = strconv.ParseFloat(a, 64)
+		if err != nil {
+			return err
+		}
 	}
 	source, err := sect.GetArg("source")
 	if err != nil {
