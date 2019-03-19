@@ -26,66 +26,66 @@ const (
 	BL = iota
 )
 
-type point struct {
-	x int
-	y int
+type Point struct {
+	X int
+	Y int
 }
 
-type bbox [4]point
+type BBox [4]Point
 
 // Make a bounding box of the given width.
 // Shrink the base by width as well.
-func mkbb(s1, s2, e1, e2 point, w int) bbox {
-	var bb bbox
-	bb[TL] = adjust(s1, s2, w)
-	bb[BL] = adjust(s2, s1, w)
-	ne1 := adjust(e1, e2, w)
-	ne2 := adjust(e2, e1, w)
-	bb[TR] = adjust(bb[TL], ne1, w)
-	bb[BR] = adjust(bb[BL], ne2, w)
+func MakeBB(s1, s2, e1, e2 Point, w int) BBox {
+	var bb BBox
+	bb[TL] = Adjust(s1, s2, w)
+	bb[BL] = Adjust(s2, s1, w)
+	ne1 := Adjust(e1, e2, w)
+	ne2 := Adjust(e2, e1, w)
+	bb[TR] = Adjust(bb[TL], ne1, w)
+	bb[BR] = Adjust(bb[BL], ne2, w)
 	return bb
 }
 
 // Make a inner bounding box with the given margin.
-func mkinnerbb(b bbox, m int) bbox {
-	tl := adjust(b[TL], b[TR], m)
-	tr := adjust(b[TR], b[TL], m)
-	bl := adjust(b[BL], b[BR], m)
-	br := adjust(b[BR], b[BL], m)
-	nb := bbox{}
-	nb[TL] = adjust(tl, bl, m)
-	nb[TR] = adjust(tr, br, m)
-	nb[BL] = adjust(bl, tl, m)
-	nb[BR] = adjust(br, tr, m)
+func MakeInnerBB(b BBox, m int) BBox {
+	tl := Adjust(b[TL], b[TR], m)
+	tr := Adjust(b[TR], b[TL], m)
+	bl := Adjust(b[BL], b[BR], m)
+	br := Adjust(b[BR], b[BL], m)
+	nb := BBox{}
+	nb[TL] = Adjust(tl, bl, m)
+	nb[TR] = Adjust(tr, br, m)
+	nb[BL] = Adjust(bl, tl, m)
+	nb[BR] = Adjust(br, tr, m)
 	return nb
 }
 
 // Return a list of all the points in the bounding box.
-func fill(bb bbox) []point {
-	points := []point{}
+func FillBB(bb BBox) []Point {
+	points := []Point{}
 	// Find the edges.
-	minx := bb[0].x
-	maxx :=	bb[0].x
-	miny := bb[0].y
-	maxy :=	bb[0].y
+	minx := bb[0].X
+	maxx :=	bb[0].X
+	miny := bb[0].Y
+	maxy :=	bb[0].Y
 	for i := 1; i < len(bb); i++ {
-		if minx > bb[i].x {
-			minx = bb[i].x
+		if minx > bb[i].X {
+			minx = bb[i].X
 		}
-		if maxx < bb[i].x {
-			maxx = bb[i].x
+		if maxx < bb[i].X {
+			maxx = bb[i].X
 		}
-		if miny > bb[i].y {
-			miny = bb[i].y
+		if miny > bb[i].Y {
+			miny = bb[i].Y
 		}
-		if maxy < bb[i].y {
-			maxy = bb[i].y
+		if maxy < bb[i].Y {
+			maxy = bb[i].Y
 		}
 	}
 	for y := miny; y <= maxy; y++ {
 		for x := minx; x <= maxx; x++ {
-			p := point{x, y}
-			if inBB(bb, p) {
+			p := Point{x, y}
+			if InBB(bb, p) {
 				points = append(points, p)
 			}
 		}
@@ -93,12 +93,12 @@ func fill(bb bbox) []point {
 	return points
 }
 
-func inBB(bb bbox, p point) bool {
-	limit := point{10000, p.y}
+func InBB(bb BBox, p Point) bool {
+	limit := Point{10000, p.Y}
 	// Check whether ray hits a vertex.
 	var vertex int
 	for _, v := range bb {
-		if v.y == p.y {
+		if v.Y == p.Y {
 			vertex++;
 		}
 	}
@@ -118,7 +118,7 @@ func inBB(bb bbox, p point) bool {
 	return (count & 1) != 0
 }
 
-func intersect(p1, q1, p2, q2 point) bool {
+func intersect(p1, q1, p2, q2 Point) bool {
 	o1 := orientation(p1, q1, p2)
     o2 := orientation(p1, q1, q2)
     o3 := orientation(p2, q2, p1)
@@ -141,8 +141,8 @@ func intersect(p1, q1, p2, q2 point) bool {
     return false
 }
 
-func orientation(p, q, r point) int {
-	v := (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y)
+func orientation(p, q, r Point) int {
+	v := (q.Y - p.Y) * (r.X - q.X) - (q.X - p.X) * (r.Y - q.Y)
 	if v == 0 {
 		return 0
 	}
@@ -153,9 +153,9 @@ func orientation(p, q, r point) int {
 	}
 }
 
-func onSegment(p, q, r point) bool {
-	if q.x <= max(p.x, r.x) && q.x >= min(p.x, r.x) &&
-		q.y <= max(p.y, r.y) && q.y >= min(p.y, r.y) {
+func onSegment(p, q, r Point) bool {
+	if q.X <= max(p.X, r.X) && q.X >= min(p.X, r.X) &&
+		q.Y <= max(p.Y, r.Y) && q.Y >= min(p.Y, r.Y) {
 		return true
 	}
 	return false
@@ -176,48 +176,40 @@ func max(a, b int) int {
 }
 
 // return an adjusted point that is closer to e by the given amount.
-func adjust(s, e point, amt int) point {
-	x := e.x - s.x
-	y := e.y - s.y
+func Adjust(s, e Point, amt int) Point {
+	x := e.X - s.X
+	y := e.Y - s.Y
 	length := int(math.Round(math.Sqrt(float64(x*x)+float64(y*y)) + 0.5))
-	return point{s.x + amt * x / length, s.y + amt * y / length}
-}
-
-// Return the point closest to the ratio between 2 points
-func step(p1, p2 point, inc, length int) point {
-	var p point
-	p.x = ((p2.x-p1.x)*inc)/length + p1.x
-	p.y = ((p2.y-p1.y)*inc)/length + p1.y
-	return p
+	return Point{s.X + amt * x / length, s.Y + amt * y / length}
 }
 
 // Return a slice of points that splits the line into sections.
-func split(start, end point, sections int) []point {
-	lx := end.x - start.x
-	ly := end.y - start.y
-	p := make([]point, sections-1)
+func Split(start, end Point, sections int) []Point {
+	lx := end.X - start.X
+	ly := end.Y - start.Y
+	p := make([]Point, sections-1)
 	for i := 1; i < sections; i++ {
-		p[i-1] = point{start.x + lx*i/sections, start.y + ly*i/sections}
+		p[i-1] = Point{start.X + lx*i/sections, start.Y + ly*i/sections}
 	}
 	return p
 }
 
 // Build a new point list, adding in x and y.
-func offset(p []point, x, y int) []point {
-	np := make([]point, len(p), len(p))
+func Offset(p []Point, x, y int) []Point {
+	np := make([]Point, len(p), len(p))
 	for i := range p {
-		np[i].x = p[i].x + x
-		np[i].y = p[i].y + y
+		np[i].X = p[i].X + x
+		np[i].Y = p[i].Y + y
 	}
 	return np
 }
 
 // Build a new bounding box offset by x and y.
-func offsetbb(bb bbox, x, y int) bbox {
-	var nb bbox
+func OffsetBB(bb BBox, x, y int) BBox {
+	var nb BBox
 	for i := range bb {
-		nb[i].x = bb[i].x
-		nb[i].y = bb[i].y
+		nb[i].X = bb[i].X
+		nb[i].Y = bb[i].Y
 	}
 	return nb
 }
