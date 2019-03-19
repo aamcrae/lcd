@@ -125,36 +125,40 @@ func NewLcdDecoder() *LcdDecoder {
 }
 
 // Add a template.
-func (l *LcdDecoder) AddTemplate(name string, bb []int, width int) error {
+func (l *LcdDecoder) AddTemplate(name string, points []int, width int) error {
 	if _, ok := l.templates[name]; ok {
 		return fmt.Errorf("Duplicate template entry: %s", name)
 	}
-	bb = append([]int{0, 0}, bb...)
-	t := &Template{name: name, bb: bbox{point{bb[0], bb[1]}, point{bb[2], bb[3]}, point{bb[4], bb[5]}, point{bb[6], bb[7]}}, line: width}
+	points = append([]int{0, 0}, points...)
+	t := &Template{name: name, line: width}
+	for i := range t.bb {
+		t.bb[i].x = points[i * 2]
+		t.bb[i].y = points[i * 2 + 1]
+	}
 	// Initialise the sample lists
 	// Middle points.
-	t.mr = split(t.bb.tr, t.bb.br, 2)[0]
-	t.tmr = adjust(t.mr, t.bb.tr, width/2)
-	t.bmr = adjust(t.mr, t.bb.br, width/2)
-	t.ml = split(t.bb.tl, t.bb.bl, 2)[0]
-	t.tml = adjust(t.ml, t.bb.tl, width/2)
-	t.bml = adjust(t.ml, t.bb.bl, width/2)
+	t.mr = split(t.bb[TR], t.bb[BR], 2)[0]
+	t.tmr = adjust(t.mr, t.bb[TR], width/2)
+	t.bmr = adjust(t.mr, t.bb[BR], width/2)
+	t.ml = split(t.bb[TL], t.bb[BL], 2)[0]
+	t.tml = adjust(t.ml, t.bb[TL], width/2)
+	t.bml = adjust(t.ml, t.bb[BL], width/2)
 	// Build the 'off' sample using the middle blocks.
-	offbb1 := mkinnerbb(bbox{t.bb.tl, t.bb.tr, t.bmr, t.bml}, width + offMargin)
-	offbb2 := mkinnerbb(bbox{t.tml, t.tmr, t.bb.br, t.bb.bl}, width + offMargin)
+	offbb1 := mkinnerbb(bbox{t.bb[TL], t.bb[TR], t.bmr, t.bml}, width + offMargin)
+	offbb2 := mkinnerbb(bbox{t.tml, t.tmr, t.bb[BR], t.bb[BL]}, width + offMargin)
 	t.off = fill(offbb1)
 	t.off = append(t.off, fill(offbb2)...)
 	t.segbb = make([]bbox, SEGMENTS, SEGMENTS)
 	t.segments = make([]sample, SEGMENTS, SEGMENTS)
 	// The assignments must match the bit allocation in
 	// the lookup table.
-	t.segbb[S_TL] = mkbb(t.bb.tl, t.ml, t.bb.tr, t.mr, width)
-	t.segbb[S_T] = mkbb(t.bb.tl, t.bb.tr, t.bb.bl, t.bb.br, width)
-	t.segbb[S_TR] = mkbb(t.bb.tr, t.mr, t.bb.tl, t.ml, width)
-	t.segbb[S_BR] = mkbb(t.mr, t.bb.br, t.ml, t.bb.bl, width)
-	t.segbb[S_B] = mkbb(t.bb.bl, t.bb.br, t.ml, t.mr, width)
-	t.segbb[S_BL] = mkbb(t.ml, t.bb.bl, t.mr, t.bb.br, width)
-	t.segbb[S_M] = mkbb(t.tml, t.tmr, t.bb.bl, t.bb.br, width)
+	t.segbb[S_TL] = mkbb(t.bb[TL], t.ml, t.bb[TR], t.mr, width)
+	t.segbb[S_T] = mkbb(t.bb[TL], t.bb[TR], t.bb[BL], t.bb[BR], width)
+	t.segbb[S_TR] = mkbb(t.bb[TR], t.mr, t.bb[TL], t.ml, width)
+	t.segbb[S_BR] = mkbb(t.mr, t.bb[BR], t.ml, t.bb[BL], width)
+	t.segbb[S_B] = mkbb(t.bb[BL], t.bb[BR], t.ml, t.mr, width)
+	t.segbb[S_BL] = mkbb(t.ml, t.bb[BL], t.mr, t.bb[BR], width)
+	t.segbb[S_M] = mkbb(t.tml, t.tmr, t.bb[BL], t.bb[BR], width)
 	for i := range t.segbb {
 		t.segments[i] = fill(t.segbb[i])
 	}
@@ -282,8 +286,7 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA) {
 }
 
 func drawBB(img *image.RGBA, b bbox, c color.Color) {
-	s := sample{b.tl, b.tr, b.br, b.bl}
-	drawCross(img, s, c)
+	drawCross(img, b[:], c)
 }
 
 func drawPoint(img *image.RGBA, s sample, c color.Color) {

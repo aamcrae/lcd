@@ -31,34 +31,32 @@ type point struct {
 	y int
 }
 
-type bbox struct {
-	tl, tr, br, bl point
-}
+type bbox [4]point
 
 // Make a bounding box of the given width.
 // Shrink the base by width as well.
 func mkbb(s1, s2, e1, e2 point, w int) bbox {
-	bb := bbox{}
-	bb.tl = adjust(s1, s2, w)
-	bb.bl = adjust(s2, s1, w)
+	var bb bbox
+	bb[TL] = adjust(s1, s2, w)
+	bb[BL] = adjust(s2, s1, w)
 	ne1 := adjust(e1, e2, w)
 	ne2 := adjust(e2, e1, w)
-	bb.tr = adjust(bb.tl, ne1, w)
-	bb.br = adjust(bb.bl, ne2, w)
+	bb[TR] = adjust(bb[TL], ne1, w)
+	bb[BR] = adjust(bb[BL], ne2, w)
 	return bb
 }
 
 // Make a inner bounding box with the given margin.
 func mkinnerbb(b bbox, m int) bbox {
-	tl := adjust(b.tl, b.tr, m)
-	tr := adjust(b.tr, b.tl, m)
-	bl := adjust(b.bl, b.br, m)
-	br := adjust(b.br, b.bl, m)
+	tl := adjust(b[TL], b[TR], m)
+	tr := adjust(b[TR], b[TL], m)
+	bl := adjust(b[BL], b[BR], m)
+	br := adjust(b[BR], b[BL], m)
 	nb := bbox{}
-	nb.tl = adjust(tl, bl, m)
-	nb.tr = adjust(tr, br, m)
-	nb.bl = adjust(bl, tl, m)
-	nb.br = adjust(br, tr, m)
+	nb[TL] = adjust(tl, bl, m)
+	nb[TR] = adjust(tr, br, m)
+	nb[BL] = adjust(bl, tl, m)
+	nb[BR] = adjust(br, tr, m)
 	return nb
 }
 
@@ -66,23 +64,22 @@ func mkinnerbb(b bbox, m int) bbox {
 func fill(bb bbox) []point {
 	points := []point{}
 	// Find the edges.
-	minx := bb.tl.x
-	maxx :=	bb.tl.x
-	miny := bb.tl.y
-	maxy :=	bb.tl.y
-	l := []point{bb.tr, bb.br, bb.bl}
-	for _, b := range l {
-		if minx > b.x {
-			minx = b.x
+	minx := bb[0].x
+	maxx :=	bb[0].x
+	miny := bb[0].y
+	maxy :=	bb[0].y
+	for i := 1; i < len(bb); i++ {
+		if minx > bb[i].x {
+			minx = bb[i].x
 		}
-		if maxx < b.x {
-			maxx = b.x
+		if maxx < bb[i].x {
+			maxx = bb[i].x
 		}
-		if miny > b.y {
-			miny = b.y
+		if miny > bb[i].y {
+			miny = bb[i].y
 		}
-		if maxy < b.y {
-			maxy = b.y
+		if maxy < bb[i].y {
+			maxy = bb[i].y
 		}
 	}
 	for y := miny; y <= maxy; y++ {
@@ -98,20 +95,19 @@ func fill(bb bbox) []point {
 
 func inBB(bb bbox, p point) bool {
 	limit := point{10000, p.y}
-	l := []point{bb.tl, bb.tr, bb.br, bb.bl}
 	// Check whether ray hits a vertex.
 	var vertex int
-	for _, v := range l {
+	for _, v := range bb {
 		if v.y == p.y {
 			vertex++;
 		}
 	}
 	var count int
-	for i := range l {
-		next := (i + 1) % len(l)
-		if intersect(l[i], l[next], p, limit) {
-			if orientation(l[i], p, l[next]) == 0 {
-				return onSegment(l[i], p, l[next])
+	for i := range bb {
+		next := (i + 1) % len(bb)
+		if intersect(bb[i], bb[next], p, limit) {
+			if orientation(bb[i], p, bb[next]) == 0 {
+				return onSegment(bb[i], p, bb[next])
 			}
             count++
 		}
@@ -218,14 +214,10 @@ func offset(p []point, x, y int) []point {
 
 // Build a new bounding box offset by x and y.
 func offsetbb(bb bbox, x, y int) bbox {
-	nb := bbox{}
-	nb.tl.x = bb.tl.x + x
-	nb.tl.y = bb.tl.y + y
-	nb.tr.x = bb.tr.x + x
-	nb.tr.y = bb.tr.y + y
-	nb.br.x = bb.br.x + x
-	nb.br.y = bb.br.y + y
-	nb.bl.x = bb.bl.x + x
-	nb.bl.y = bb.bl.y + y
+	var nb bbox
+	for i := range bb {
+		nb[i].x = bb[i].x
+		nb[i].y = bb[i].y
+	}
 	return nb
 }
