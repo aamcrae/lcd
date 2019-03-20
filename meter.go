@@ -109,7 +109,7 @@ func runReader(r *Reader, source string, angle float64, wr chan<- core.Input) {
 			if !ok {
 				log.Printf("Unknown meter label: %s\n", label)
 			} else {
-				wr <- core.Input{tag, val}
+				wr <- core.Input{Tag: tag, Value: val}
 			}
 		}
 	}

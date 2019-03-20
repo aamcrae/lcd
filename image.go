@@ -79,7 +79,7 @@ func GetSource(src string) (image.Image, error) {
 func ReadImage(name string) (image.Image, error) {
 	inf, err := os.Open(name)
 	if err != nil {
-		fmt.Errorf("Failed to open %s: %v", name, err)
+		return nil, err
 	}
 	defer inf.Close()
 	in, _, err := image.Decode(inf)
