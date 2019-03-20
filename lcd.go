@@ -144,21 +144,21 @@ func (l *LcdDecoder) AddTemplate(name string, points []int, width int) error {
 	t.tml = adjust(t.ml, t.bb[TL], width/2)
 	t.bml = adjust(t.ml, t.bb[BL], width/2)
 	// Build the 'off' sample using the middle blocks.
-	offbb1 := makeInnerBB(bbox{t.bb[TL], t.bb[TR], t.bmr, t.bml}, width + offMargin)
-	offbb2 := makeInnerBB(bbox{t.tml, t.tmr, t.bb[BR], t.bb[BL]}, width + offMargin)
+	offbb1 := innerBB(bbox{t.bb[TL], t.bb[TR], t.bmr, t.bml}, width + offMargin)
+	offbb2 := innerBB(bbox{t.tml, t.tmr, t.bb[BR], t.bb[BL]}, width + offMargin)
 	t.off = fillBB(offbb1)
 	t.off = append(t.off, fillBB(offbb2)...)
 	t.segbb = make([]bbox, SEGMENTS, SEGMENTS)
 	t.segments = make([]sample, SEGMENTS, SEGMENTS)
 	// The assignments must match the bit allocation in
 	// the lookup table.
-	t.segbb[S_TL] = makeBB(t.bb[TL], t.ml, t.bb[TR], t.mr, width)
-	t.segbb[S_T] = makeBB(t.bb[TL], t.bb[TR], t.bb[BL], t.bb[BR], width)
-	t.segbb[S_TR] = makeBB(t.bb[TR], t.mr, t.bb[TL], t.ml, width)
-	t.segbb[S_BR] = makeBB(t.mr, t.bb[BR], t.ml, t.bb[BL], width)
-	t.segbb[S_B] = makeBB(t.bb[BL], t.bb[BR], t.ml, t.mr, width)
-	t.segbb[S_BL] = makeBB(t.ml, t.bb[BL], t.mr, t.bb[BR], width)
-	t.segbb[S_M] = makeBB(t.tml, t.tmr, t.bb[BL], t.bb[BR], width)
+	t.segbb[S_TL] = segmentBB(t.bb[TL], t.ml, t.bb[TR], t.mr, width)
+	t.segbb[S_T] = segmentBB(t.bb[TL], t.bb[TR], t.bb[BL], t.bb[BR], width)
+	t.segbb[S_TR] = segmentBB(t.bb[TR], t.mr, t.bb[TL], t.ml, width)
+	t.segbb[S_BR] = segmentBB(t.mr, t.bb[BR], t.ml, t.bb[BL], width)
+	t.segbb[S_B] = segmentBB(t.bb[BL], t.bb[BR], t.ml, t.mr, width)
+	t.segbb[S_BL] = segmentBB(t.ml, t.bb[BL], t.mr, t.bb[BR], width)
+	t.segbb[S_M] = segmentBB(t.tml, t.tmr, t.bb[BL], t.bb[BR], width)
 	for i := range t.segbb {
 		t.segments[i] = fillBB(t.segbb[i])
 	}

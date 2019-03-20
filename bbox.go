@@ -18,7 +18,7 @@ import (
 	"math"
 )
 
-const fixVertex = false
+const fixVertex = true
 
 // Bounding box
 const (
@@ -35,9 +35,9 @@ type point struct {
 
 type bbox [4]point
 
-// Make a bounding box of the given width.
+// Make a bounding box for a segment.
 // Shrink the base by width as well.
-func makeBB(s1, s2, e1, e2 point, w int) bbox {
+func segmentBB(s1, s2, e1, e2 point, w int) bbox {
 	var bb bbox
 	bb[TL] = adjust(s1, s2, w)
 	bb[BL] = adjust(s2, s1, w)
@@ -49,7 +49,7 @@ func makeBB(s1, s2, e1, e2 point, w int) bbox {
 }
 
 // Make a inner bounding box with the given margin.
-func makeInnerBB(b bbox, m int) bbox {
+func innerBB(b bbox, m int) bbox {
 	tl := adjust(b[TL], b[TR], m)
 	tr := adjust(b[TR], b[TL], m)
 	bl := adjust(b[BL], b[BR], m)
