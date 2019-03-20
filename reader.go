@@ -138,7 +138,7 @@ func handlerNumber(r *Reader, m *measure, key, value string) (string, float64, e
 		return "", 0, fmt.Errorf("key %s: %v", key, err)
 	}
 	if v < m.min || v >= m.max {
-		return "", 0, fmt.Errorf("%s Out of range (%f)", key, v)
+		return "", 0, fmt.Errorf("%s Out of range (%f), min %f, max %f", key, v, m.min, m.max)
 	}
 	if r.trace {
 		log.Printf("Meter read: key %s value %f, min %f, max %f\n", key, v, m.min, m.max)

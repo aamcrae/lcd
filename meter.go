@@ -26,7 +26,7 @@ import (
 
 var saveBad = flag.Bool("savebad", false, "Save each bad image")
 var badFile = flag.String("bad", "/tmp/bad.jpg", "Bad images")
-var sampleTime = flag.Int("sample", 3, "Sample time (seconds)")
+var sampleTime = flag.Int("sample", 4900, "Image sample rate (milliseconds)")
 
 // Maps meter label to tag.
 var tagMap map[string]string = map[string]string{
@@ -85,7 +85,7 @@ func meterReader(conf *config.Config, wr chan<- core.Input) error {
 }
 
 func runReader(r *Reader, source string, angle float64, wr chan<- core.Input) {
-	delay := time.Duration(*sampleTime) * time.Second
+	delay := time.Duration(*sampleTime) * time.Millisecond
 	lastTime := time.Now()
 	for {
 		time.Sleep(delay - time.Now().Sub(lastTime))
