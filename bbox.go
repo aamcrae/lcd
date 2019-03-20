@@ -210,8 +210,8 @@ func offset(p []point, x, y int) []point {
 func offsetBB(bb bbox, x, y int) bbox {
 	var nb bbox
 	for i := range bb {
-		nb[i].x = bb[i].x
-		nb[i].y = bb[i].y
+		nb[i].x = bb[i].x + x
+		nb[i].y = bb[i].y + y
 	}
 	return nb
 }
