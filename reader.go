@@ -79,11 +79,11 @@ func NewReader(c *config.Section, trace bool) (*Reader, error) {
 		}
 		min, err := strconv.ParseFloat(e.Tokens[1], 64)
 		if err != nil {
-			return nil, fmt.Errorf("Ilegal min value at %s:%d", e.Tokens[0], e.Filename, e.Lineno)
+			return nil, fmt.Errorf("Ilegal min value (%s) at %s:%d", e.Tokens[0], e.Filename, e.Lineno)
 		}
 		max, err := strconv.ParseFloat(e.Tokens[2], 64)
 		if err != nil {
-			return nil, fmt.Errorf("Ilegal max value at %s:%d", e.Tokens[0], e.Filename, e.Lineno)
+			return nil, fmt.Errorf("Ilegal max value (%s) at %s:%d", e.Tokens[0], e.Filename, e.Lineno)
 		}
 		m.min = min
 		m.max = max
