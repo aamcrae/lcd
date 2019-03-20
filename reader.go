@@ -1,11 +1,11 @@
 // Copyright 2019 Google LLC
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     https://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -54,13 +54,13 @@ var measures map[string]*measure = map[string]*measure{
 	"1nP1": &measure{handlerIgnore, 1.0, 0, 0},
 	"1nP2": &measure{handlerIgnore, 1.0, 0, 0},
 	"t1NE": &measure{handlerIgnore, 1.0, 0, 0},
-	"1NtL": &measure{handlerAccum, 100.0, 0, 0},     // KwH
-	"tP  ": &measure{handlerNumber, 10000.0, 0, 0},  // Kw
-	"EHtL": &measure{handlerAccum, 100.0, 0, 0},     // KwH
-	"EHL1": &measure{handlerAccum, 100.0, 0, 0},     // KwH
-	"EHL2": &measure{handlerAccum, 100.0, 0, 0},     // KwH
-	"1NL1": &measure{handlerAccum, 100.0, 0, 0},     // KwH
-	"1NL2": &measure{handlerAccum, 100.0, 0, 0},     // KwH
+	"1NtL": &measure{handlerAccum, 100.0, 0, 0},    // KwH
+	"tP  ": &measure{handlerNumber, 10000.0, 0, 0}, // Kw
+	"EHtL": &measure{handlerAccum, 100.0, 0, 0},    // KwH
+	"EHL1": &measure{handlerAccum, 100.0, 0, 0},    // KwH
+	"EHL2": &measure{handlerAccum, 100.0, 0, 0},    // KwH
+	"1NL1": &measure{handlerAccum, 100.0, 0, 0},    // KwH
+	"1NL2": &measure{handlerAccum, 100.0, 0, 0},    // KwH
 	"8888": &measure{handlerCalibrate, 1.0, 0, 0},
 }
 

@@ -1,11 +1,11 @@
 // Copyright 2019 Google LLC
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     https://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -67,9 +67,9 @@ func fillBB(bb bbox) []point {
 	points := []point{}
 	// Find the edges.
 	minx := bb[0].x
-	maxx :=	bb[0].x
+	maxx := bb[0].x
 	miny := bb[0].y
-	maxy :=	bb[0].y
+	maxy := bb[0].y
 	for i := 1; i < len(bb); i++ {
 		if minx > bb[i].x {
 			minx = bb[i].x
@@ -101,7 +101,7 @@ func inBB(bb bbox, p point) bool {
 	var vertex int
 	for _, v := range bb {
 		if v.y == p.y {
-			vertex++;
+			vertex++
 		}
 	}
 	var count int
@@ -111,7 +111,7 @@ func inBB(bb bbox, p point) bool {
 			if orientation(bb[i], p, bb[next]) == 0 {
 				return onSegment(bb[i], p, bb[next])
 			}
-            count++
+			count++
 		}
 	}
 	if fixVertex && vertex > 0 && count == 3 {
@@ -122,29 +122,29 @@ func inBB(bb bbox, p point) bool {
 
 func intersect(p1, q1, p2, q2 point) bool {
 	o1 := orientation(p1, q1, p2)
-    o2 := orientation(p1, q1, q2)
-    o3 := orientation(p2, q2, p1)
-    o4 := orientation(p2, q2, q1)
+	o2 := orientation(p1, q1, q2)
+	o3 := orientation(p2, q2, p1)
+	o4 := orientation(p2, q2, q1)
 	if o1 != o2 && o3 != o4 {
-        return true
-	}
-    if o1 == 0 && onSegment(p1, p2, q1) {
 		return true
 	}
-    if o2 == 0 && onSegment(p1, q2, q1) {
+	if o1 == 0 && onSegment(p1, p2, q1) {
 		return true
 	}
-    if o3 == 0 && onSegment(p2, p1, q2) {
+	if o2 == 0 && onSegment(p1, q2, q1) {
 		return true
 	}
-    if o4 == 0 && onSegment(p2, q1, q2) {
-		 return true
+	if o3 == 0 && onSegment(p2, p1, q2) {
+		return true
 	}
-    return false
+	if o4 == 0 && onSegment(p2, q1, q2) {
+		return true
+	}
+	return false
 }
 
 func orientation(p, q, r point) int {
-	v := (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y)
+	v := (q.y-p.y)*(r.x-q.x) - (q.x-p.x)*(r.y-q.y)
 	if v == 0 {
 		return 0
 	}
@@ -164,17 +164,17 @@ func onSegment(p, q, r point) bool {
 }
 
 func min(a, b int) int {
-    if a < b {
-        return a
-    }
-    return b
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func max(a, b int) int {
-    if a > b {
-        return a
-    }
-    return b
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // return an adjusted point that is closer to e by the given amount.
@@ -182,7 +182,7 @@ func adjust(s, e point, amt int) point {
 	x := e.x - s.x
 	y := e.y - s.y
 	length := int(math.Round(math.Sqrt(float64(x*x)+float64(y*y)) + 0.5))
-	return point{s.x + amt * x / length, s.y + amt * y / length}
+	return point{s.x + amt*x/length, s.y + amt*y/length}
 }
 
 // Return a slice of points that splits the line into sections.

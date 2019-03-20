@@ -1,11 +1,11 @@
 // Copyright 2019 Google LLC
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     https://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -47,14 +47,14 @@ type Template struct {
 	line     int
 	bb       bbox
 	off      sample
-	segbb	 []bbox
+	segbb    []bbox
 	segments []sample
-	mr		 point
-	ml		 point
-	tmr		 point
-	tml		 point
-	bmr		 point
-	bml		 point
+	mr       point
+	ml       point
+	tmr      point
+	tml      point
+	bmr      point
+	bml      point
 }
 
 // Scale holds the calibrated on/off values for each segment.
@@ -65,23 +65,23 @@ type Scale struct {
 
 // All points are absolute.
 type Digit struct {
-	index		int
-	pos			point
-	min			[]int
-	max			[]int
-	bb			bbox
-	tmr			point
-	tml			point
-	bmr			point
-	bml			point
-	off			sample
-	segbb	 []bbox
-	segments	[]sample
+	index    int
+	pos      point
+	min      []int
+	max      []int
+	bb       bbox
+	tmr      point
+	tml      point
+	bmr      point
+	bml      point
+	off      sample
+	segbb    []bbox
+	segments []sample
 }
 
 type LcdDecoder struct {
 	digits    []*Digit
-	templates    map[string]*Template
+	templates map[string]*Template
 	threshold int
 }
 
@@ -132,8 +132,8 @@ func (l *LcdDecoder) AddTemplate(name string, points []int, width int) error {
 	points = append([]int{0, 0}, points...)
 	t := &Template{name: name, line: width}
 	for i := range t.bb {
-		t.bb[i].x = points[i * 2]
-		t.bb[i].y = points[i * 2 + 1]
+		t.bb[i].x = points[i*2]
+		t.bb[i].y = points[i*2+1]
 	}
 	// Initialise the sample lists
 	// Middle points.
@@ -144,8 +144,8 @@ func (l *LcdDecoder) AddTemplate(name string, points []int, width int) error {
 	t.tml = adjust(t.ml, t.bb[TL], width/2)
 	t.bml = adjust(t.ml, t.bb[BL], width/2)
 	// Build the 'off' sample using the middle blocks.
-	offbb1 := innerBB(bbox{t.bb[TL], t.bb[TR], t.bmr, t.bml}, width + offMargin)
-	offbb2 := innerBB(bbox{t.tml, t.tmr, t.bb[BR], t.bb[BL]}, width + offMargin)
+	offbb1 := innerBB(bbox{t.bb[TL], t.bb[TR], t.bmr, t.bml}, width+offMargin)
+	offbb2 := innerBB(bbox{t.tml, t.tmr, t.bb[BR], t.bb[BL]}, width+offMargin)
 	t.off = fillBB(offbb1)
 	t.off = append(t.off, fillBB(offbb2)...)
 	t.segbb = make([]bbox, SEGMENTS, SEGMENTS)
