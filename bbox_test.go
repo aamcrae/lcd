@@ -12,56 +12,55 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package lcd_test
+package lcd
 
 import (
 	"testing"
-
-	"github.com/aamcrae/MeterMan/lcd"
+	//"github.com/aamcrae/MeterMan/lcd"
 )
 
 func TestBbox(t *testing.T) {
 	// Diamond.
-	bb := lcd.BBox{lcd.Point{10, 5}, lcd.Point{15, 10}, lcd.Point{10, 15}, lcd.Point{5, 10}}
-	in := []lcd.Point{lcd.Point{6, 10}, lcd.Point{10, 6}, lcd.Point{14,10}, lcd.Point{10, 9}, lcd.Point{10, 10}}
+	bb := bbox{point{10, 5}, point{15, 10}, point{10, 15}, point{5, 10}}
+	in := []point{point{6, 10}, point{10, 6}, point{14,10}, point{10, 9}, point{10, 10}}
 	for _, p := range in {
-		if !lcd.InBB(bb, p) {
-			t.Errorf("Expected true, got false for point (%d, %d)", p.X, p.Y)
+		if !inBB(bb, p) {
+			t.Errorf("Expected true, got false for point (%d, %d)", p.x, p.y)
 		}
 	}
-	out := []lcd.Point{lcd.Point{0,0}, lcd.Point{15,15}, lcd.Point{5, 11}, lcd.Point{4, 8}, lcd.Point{11, 5}, lcd.Point{4, 10}, lcd.Point{16, 10}}
+	out := []point{point{0,0}, point{15,15}, point{5, 11}, point{4, 8}, point{11, 5}, point{4, 10}, point{16, 10}}
 	for _, p := range out {
-		if lcd.InBB(bb, p) {
-			t.Errorf("Expected false, got true for point (%d, %d)", p.X, p.Y)
+		if inBB(bb, p) {
+			t.Errorf("Expected false, got true for point (%d, %d)", p.x, p.y)
 		}
 	}
 	// extended diamond.
-	bb = lcd.BBox{lcd.Point{8, 3}, lcd.Point{15, 10}, lcd.Point{10, 15}, lcd.Point{3, 8}}
-	in = []lcd.Point{lcd.Point{8, 10}, lcd.Point{10, 8}, lcd.Point{14,10}, lcd.Point{10, 9},
-		lcd.Point{10, 10}, lcd.Point{8, 3}, lcd.Point{3, 8}}
+	bb = bbox{point{8, 3}, point{15, 10}, point{10, 15}, point{3, 8}}
+	in = []point{point{8, 10}, point{10, 8}, point{14,10}, point{10, 9},
+		point{10, 10}, point{8, 3}, point{3, 8}}
 	for _, p := range in {
-		if !lcd.InBB(bb, p) {
-			t.Errorf("Expected true, got false for point (%d, %d)", p.X, p.Y)
+		if !inBB(bb, p) {
+			t.Errorf("Expected true, got false for point (%d, %d)", p.x, p.y)
 		}
 	}
-	out = []lcd.Point{lcd.Point{0,0}, lcd.Point{15,15}, lcd.Point{5, 11}, lcd.Point{2, 8}, lcd.Point{11, 5}, lcd.Point{2, 10}, lcd.Point{16, 10}}
+	out = []point{point{0,0}, point{15,15}, point{5, 11}, point{2, 8}, point{11, 5}, point{2, 10}, point{16, 10}}
 	for _, p := range out {
-		if lcd.InBB(bb, p) {
-			t.Errorf("Expected false, got true for point (%d, %d)", p.X, p.Y)
+		if inBB(bb, p) {
+			t.Errorf("Expected false, got true for point (%d, %d)", p.x, p.y)
 		}
 	}
 	// Square.
-	bb = lcd.BBox{lcd.Point{5, 5}, lcd.Point{10, 5}, lcd.Point{10, 10}, lcd.Point{5, 10}}
-	in = []lcd.Point{lcd.Point{5,5}, lcd.Point{7,8}, lcd.Point{10,10}, lcd.Point{5, 10}, lcd.Point{10,5}, lcd.Point{8, 10}}
+	bb = bbox{point{5, 5}, point{10, 5}, point{10, 10}, point{5, 10}}
+	in = []point{point{5,5}, point{7,8}, point{10,10}, point{5, 10}, point{10,5}, point{8, 10}}
 	for _, p := range in {
-		if !lcd.InBB(bb, p) {
-			t.Errorf("Expected true, got false for point (%d, %d)", p.X, p.Y)
+		if !inBB(bb, p) {
+			t.Errorf("Expected true, got false for point (%d, %d)", p.x, p.y)
 		}
 	}
-	out = []lcd.Point{lcd.Point{0,0}, lcd.Point{11,11}, lcd.Point{11,10}, lcd.Point{4, 8}, lcd.Point{12,8}, lcd.Point{11, 5}}
+	out = []point{point{0,0}, point{11,11}, point{11,10}, point{4, 8}, point{12,8}, point{11, 5}}
 	for _, p := range out {
-		if lcd.InBB(bb, p) {
-			t.Errorf("Expected false, got true for point (%d, %d)", p.X, p.Y)
+		if inBB(bb, p) {
+			t.Errorf("Expected false, got true for point (%d, %d)", p.x, p.y)
 		}
 	}
 }

@@ -39,22 +39,22 @@ const (
 	SEGMENTS   = iota
 )
 
-type sample []Point
+type sample []point
 
 // Points are all relative to TL position.
 type Template struct {
 	name     string
 	line     int
-	bb       BBox
+	bb       bbox
 	off      sample
-	segbb	 []BBox
+	segbb	 []bbox
 	segments []sample
-	mr		 Point
-	ml		 Point
-	tmr		 Point
-	tml		 Point
-	bmr		 Point
-	bml		 Point
+	mr		 point
+	ml		 point
+	tmr		 point
+	tml		 point
+	bmr		 point
+	bml		 point
 }
 
 // Scale holds the calibrated on/off values for each segment.
@@ -66,16 +66,16 @@ type Scale struct {
 // All points are absolute.
 type Digit struct {
 	index		int
-	pos			Point
+	pos			point
 	min			[]int
 	max			[]int
-	bb			BBox
-	tmr			Point
-	tml			Point
-	bmr			Point
-	bml			Point
+	bb			bbox
+	tmr			point
+	tml			point
+	bmr			point
+	bml			point
 	off			sample
-	segbb	 []BBox
+	segbb	 []bbox
 	segments	[]sample
 }
 
@@ -132,35 +132,35 @@ func (l *LcdDecoder) AddTemplate(name string, points []int, width int) error {
 	points = append([]int{0, 0}, points...)
 	t := &Template{name: name, line: width}
 	for i := range t.bb {
-		t.bb[i].X = points[i * 2]
-		t.bb[i].Y = points[i * 2 + 1]
+		t.bb[i].x = points[i * 2]
+		t.bb[i].y = points[i * 2 + 1]
 	}
 	// Initialise the sample lists
 	// Middle points.
-	t.mr = Split(t.bb[TR], t.bb[BR], 2)[0]
-	t.tmr = Adjust(t.mr, t.bb[TR], width/2)
-	t.bmr = Adjust(t.mr, t.bb[BR], width/2)
-	t.ml = Split(t.bb[TL], t.bb[BL], 2)[0]
-	t.tml = Adjust(t.ml, t.bb[TL], width/2)
-	t.bml = Adjust(t.ml, t.bb[BL], width/2)
+	t.mr = split(t.bb[TR], t.bb[BR], 2)[0]
+	t.tmr = adjust(t.mr, t.bb[TR], width/2)
+	t.bmr = adjust(t.mr, t.bb[BR], width/2)
+	t.ml = split(t.bb[TL], t.bb[BL], 2)[0]
+	t.tml = adjust(t.ml, t.bb[TL], width/2)
+	t.bml = adjust(t.ml, t.bb[BL], width/2)
 	// Build the 'off' sample using the middle blocks.
-	offbb1 := MakeInnerBB(BBox{t.bb[TL], t.bb[TR], t.bmr, t.bml}, width + offMargin)
-	offbb2 := MakeInnerBB(BBox{t.tml, t.tmr, t.bb[BR], t.bb[BL]}, width + offMargin)
-	t.off = FillBB(offbb1)
-	t.off = append(t.off, FillBB(offbb2)...)
-	t.segbb = make([]BBox, SEGMENTS, SEGMENTS)
+	offbb1 := makeInnerBB(bbox{t.bb[TL], t.bb[TR], t.bmr, t.bml}, width + offMargin)
+	offbb2 := makeInnerBB(bbox{t.tml, t.tmr, t.bb[BR], t.bb[BL]}, width + offMargin)
+	t.off = fillBB(offbb1)
+	t.off = append(t.off, fillBB(offbb2)...)
+	t.segbb = make([]bbox, SEGMENTS, SEGMENTS)
 	t.segments = make([]sample, SEGMENTS, SEGMENTS)
 	// The assignments must match the bit allocation in
 	// the lookup table.
-	t.segbb[S_TL] = MakeBB(t.bb[TL], t.ml, t.bb[TR], t.mr, width)
-	t.segbb[S_T] = MakeBB(t.bb[TL], t.bb[TR], t.bb[BL], t.bb[BR], width)
-	t.segbb[S_TR] = MakeBB(t.bb[TR], t.mr, t.bb[TL], t.ml, width)
-	t.segbb[S_BR] = MakeBB(t.mr, t.bb[BR], t.ml, t.bb[BL], width)
-	t.segbb[S_B] = MakeBB(t.bb[BL], t.bb[BR], t.ml, t.mr, width)
-	t.segbb[S_BL] = MakeBB(t.ml, t.bb[BL], t.mr, t.bb[BR], width)
-	t.segbb[S_M] = MakeBB(t.tml, t.tmr, t.bb[BL], t.bb[BR], width)
+	t.segbb[S_TL] = makeBB(t.bb[TL], t.ml, t.bb[TR], t.mr, width)
+	t.segbb[S_T] = makeBB(t.bb[TL], t.bb[TR], t.bb[BL], t.bb[BR], width)
+	t.segbb[S_TR] = makeBB(t.bb[TR], t.mr, t.bb[TL], t.ml, width)
+	t.segbb[S_BR] = makeBB(t.mr, t.bb[BR], t.ml, t.bb[BL], width)
+	t.segbb[S_B] = makeBB(t.bb[BL], t.bb[BR], t.ml, t.mr, width)
+	t.segbb[S_BL] = makeBB(t.ml, t.bb[BL], t.mr, t.bb[BR], width)
+	t.segbb[S_M] = makeBB(t.tml, t.tmr, t.bb[BL], t.bb[BR], width)
 	for i := range t.segbb {
-		t.segments[i] = FillBB(t.segbb[i])
+		t.segments[i] = fillBB(t.segbb[i])
 	}
 	l.templates[name] = t
 	return nil
@@ -177,24 +177,24 @@ func (l *LcdDecoder) AddDigit(name string, x, y, min, max int) (int, error) {
 	d.index = index
 	d.min = make([]int, SEGMENTS, SEGMENTS)
 	d.max = make([]int, SEGMENTS, SEGMENTS)
-	d.bb = OffsetBB(t.bb, x, y)
-	d.off = Offset(t.off, x, y)
+	d.bb = offsetBB(t.bb, x, y)
+	d.off = offset(t.off, x, y)
 	d.segments = make([]sample, SEGMENTS, SEGMENTS)
-	d.segbb = make([]BBox, SEGMENTS, SEGMENTS)
+	d.segbb = make([]bbox, SEGMENTS, SEGMENTS)
 	for i := 0; i < SEGMENTS; i++ {
 		d.min[i] = min
 		d.max[i] = max
-		d.segments[i] = Offset(t.segments[i], x, y)
-		d.segbb[i] = OffsetBB(t.segbb[i], x, y)
+		d.segments[i] = offset(t.segments[i], x, y)
+		d.segbb[i] = offsetBB(t.segbb[i], x, y)
 	}
-	d.tmr.X = t.tmr.X + x
-	d.tmr.Y = t.tmr.Y + y
-	d.tml.X = t.tml.X + x
-	d.tml.Y = t.tml.Y + y
-	d.bmr.X = t.bmr.X + x
-	d.bmr.Y = t.bmr.Y + y
-	d.bml.X = t.bml.X + x
-	d.bml.Y = t.bml.Y + y
+	d.tmr.x = t.tmr.x + x
+	d.tmr.y = t.tmr.y + y
+	d.tml.x = t.tml.x + x
+	d.tml.y = t.tml.y + y
+	d.bmr.x = t.bmr.x + x
+	d.bmr.y = t.bmr.y + y
+	d.bml.x = t.bml.x + x
+	d.bml.y = t.bml.y + y
 	l.digits = append(l.digits, d)
 	return index, nil
 }
@@ -249,7 +249,7 @@ func scaledSample(img image.Image, slist sample, min, max int) int {
 func rawSample(img image.Image, slist sample) int {
 	var gacc int
 	for _, s := range slist {
-		c := img.At(s.X, s.Y)
+		c := img.At(s.x, s.y)
 		pix := color.Gray16Model.Convert(c).(color.Gray16)
 		gacc += int(pix.Y)
 	}
@@ -285,19 +285,19 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA) {
 	}
 }
 
-func drawBB(img *image.RGBA, b BBox, c color.Color) {
+func drawBB(img *image.RGBA, b bbox, c color.Color) {
 	drawCross(img, b[:], c)
 }
 
 func drawPoint(img *image.RGBA, s sample, c color.Color) {
 	for _, p := range s {
-		img.Set(p.X, p.Y, c)
+		img.Set(p.x, p.y, c)
 	}
 }
 func drawCross(img *image.RGBA, s sample, c color.Color) {
 	for _, p := range s {
-		x := p.X
-		y := p.Y
+		x := p.x
+		y := p.y
 		img.Set(x, y, c)
 		for i := 1; i < 3; i++ {
 			img.Set(x-i, y, c)
@@ -308,8 +308,8 @@ func drawCross(img *image.RGBA, s sample, c color.Color) {
 	}
 }
 
-func printSamples(s []Point) {
+func printSamples(s []point) {
 	for _, p := range s {
-		fmt.Printf("x = %d, y = %d\n", p.X, p.Y)
+		fmt.Printf("x = %d, y = %d\n", p.x, p.y)
 	}
 }
