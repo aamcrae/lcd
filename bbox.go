@@ -18,6 +18,8 @@ import (
 	"math"
 )
 
+const fixVertex = false
+
 // Bounding box
 const (
 	TL = iota
@@ -112,7 +114,7 @@ func InBB(bb BBox, p Point) bool {
             count++
 		}
 	}
-	if vertex > 0 && count == 3 {
+	if fixVertex && vertex > 0 && count == 3 {
 		count--
 	}
 	return (count & 1) != 0
