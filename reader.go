@@ -99,7 +99,7 @@ func (r *Reader) Calibrate(img image.Image) {
 	if time.Now().Sub(r.lastCalibration) >= calibrateDelay {
 		r.lastCalibration = now
 		log.Printf("Recalibrating")
-		r.decoder.Calibrate(img)
+		r.decoder.Calibrate(img, "888888888888")
 	}
 }
 

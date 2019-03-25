@@ -30,16 +30,22 @@ var trace = false
 // Segments.
 const (
 	S_TL, M_TL = iota, 1 << iota // Top left
-	S_T, M_T   = iota, 1 << iota // Top
+	S_TM, M_TM   = iota, 1 << iota // Top middle
 	S_TR, M_TR = iota, 1 << iota // Top right
 	S_BR, M_BR = iota, 1 << iota // Bottom right
-	S_B, M_B   = iota, 1 << iota // Bottom
+	S_BM, M_BM   = iota, 1 << iota // Bottom middle
 	S_BL, M_BL = iota, 1 << iota // Bottom left
-	S_M, M_M   = iota, 1 << iota // Middle
+	S_MM, M_MM   = iota, 1 << iota // Middle
 	SEGMENTS   = iota
 )
 
 type sample []point
+
+type segment struct {
+	bb		bbox
+	points	sample
+	max		int
+}
 
 // Points are all relative to TL position.
 type Template struct {
@@ -47,36 +53,28 @@ type Template struct {
 	line     int
 	bb       bbox
 	off      sample
-	segbb    []bbox
-	segments []sample
+	min		 int
 	mr       point
 	ml       point
 	tmr      point
 	tml      point
 	bmr      point
 	bml      point
-}
-
-// Scale holds the calibrated on/off values for each segment.
-type Scale struct {
-	min []int
-	max []int
+	seg		 [SEGMENTS]segment
 }
 
 // All points are absolute.
 type Digit struct {
 	index    int
 	pos      point
-	min      []int
-	max      []int
 	bb       bbox
+	min		 int
 	tmr      point
 	tml      point
 	bmr      point
 	bml      point
 	off      sample
-	segbb    []bbox
-	segments []sample
+	seg		 [SEGMENTS]segment
 }
 
 type LcdDecoder struct {
@@ -87,37 +85,55 @@ type LcdDecoder struct {
 
 // There are 128 possible values in a 7 segment display,
 // and this table maps a subset of the values to a string.
-const X = 0
+const ____ = 0
 
 var resultTable = map[int]string{
-	X | X | X | X | X | X | X:                   " ",
-	X | X | X | X | X | X | M_M:                 "-",
-	M_TL | M_T | M_TR | M_BR | M_B | M_BL | X:   "0",
-	X | X | M_TR | M_BR | X | X | X:             "1",
-	X | M_T | M_TR | X | M_B | M_BL | M_M:       "2",
-	X | M_T | M_TR | M_BR | M_B | X | M_M:       "3",
-	M_TL | X | M_TR | M_BR | X | X | M_M:        "4",
-	M_TL | M_T | X | M_BR | M_B | X | M_M:       "5",
-	M_TL | M_T | X | M_BR | M_B | M_BL | M_M:    "6",
-	M_TL | M_T | M_TR | M_BR | X | X | X:        "7",
-	X | M_T | M_TR | M_BR | X | X | X:           "7",
-	M_TL | M_T | M_TR | M_BR | M_B | M_BL | M_M: "8",
-	M_TL | M_T | M_TR | M_BR | M_B | X | M_M:    "9",
-	M_TL | M_T | M_TR | M_BR | X | M_BL | M_M:   "A",
-	M_TL | X | X | M_BR | M_B | M_BL | M_M:      "b",
-	M_TL | M_T | X | X | M_B | M_BL | X:         "C",
-	X | X | M_TR | M_BR | M_B | M_BL | M_M:      "d",
-	M_TL | M_T | X | X | M_B | M_BL | M_M:       "E",
-	M_TL | M_T | X | X | X | M_BL | M_M:         "F",
-	M_TL | X | X | M_BR | X | M_BL | M_M:        "h",
-	M_TL | X | M_TR | M_BR | X | M_BL | M_M:     "H",
-	M_TL | X | X | X | M_B | M_BL | X:           "L",
-	M_TL | M_T | M_TR | M_BR | X | M_BL | X:     "N",
-	X | X | X | M_BR | X | M_BL | M_M:           "n",
-	X | X | X | M_BR | M_B | M_BL | M_M:         "o",
-	M_TL | M_T | M_TR | X | X | M_BL | M_M:      "P",
-	X | X | X | X | X | M_BL | M_M:              "r",
-	M_TL | X | X | X | M_B | M_BL | M_M:         "t",
+	____ | ____ | ____ | ____ | ____ | ____ | ____: " ",
+	____ | ____ | ____ | ____ | ____ | ____ | M_MM: "-",
+	M_TL | M_TM | M_TR | M_BR | M_BM | M_BL | ____: "0",
+	____ | ____ | M_TR | M_BR | ____ | ____ | ____: "1",
+	____ | M_TM | M_TR | ____ | M_BM | M_BL | M_MM: "2",
+	____ | M_TM | M_TR | M_BR | M_BM | ____ | M_MM: "3",
+	M_TL | ____ | M_TR | M_BR | ____ | ____ | M_MM: "4",
+	M_TL | M_TM | ____ | M_BR | M_BM | ____ | M_MM: "5",
+	M_TL | M_TM | ____ | M_BR | M_BM | M_BL | M_MM: "6",
+	M_TL | M_TM | M_TR | M_BR | ____ | ____ | ____: "7",
+	____ | M_TM | M_TR | M_BR | ____ | ____ | ____: "7",
+	M_TL | M_TM | M_TR | M_BR | M_BM | M_BL | M_MM: "8",
+	M_TL | M_TM | M_TR | M_BR | M_BM | ____ | M_MM: "9",
+	M_TL | M_TM | M_TR | M_BR | ____ | M_BL | M_MM: "A",
+	M_TL | ____ | ____ | M_BR | M_BM | M_BL | M_MM: "b",
+	M_TL | M_TM | ____ | ____ | M_BM | M_BL | ____: "C",
+	____ | ____ | M_TR | M_BR | M_BM | M_BL | M_MM: "d",
+	M_TL | M_TM | ____ | ____ | M_BM | M_BL | M_MM: "E",
+	M_TL | M_TM | ____ | ____ | ____ | M_BL | M_MM: "F",
+	M_TL | ____ | ____ | M_BR | ____ | M_BL | M_MM: "h",
+	M_TL | ____ | M_TR | M_BR | ____ | M_BL | M_MM: "H",
+	M_TL | ____ | ____ | ____ | M_BM | M_BL | ____: "L",
+	M_TL | M_TM | M_TR | M_BR | ____ | M_BL | ____: "N",
+	____ | ____ | ____ | M_BR | ____ | M_BL | M_MM: "n",
+	____ | ____ | ____ | M_BR | M_BM | M_BL | M_MM: "o",
+	M_TL | M_TM | M_TR | ____ | ____ | M_BL | M_MM: "P",
+	____ | ____ | ____ | ____ | ____ | M_BL | M_MM: "r",
+	M_TL | ____ | ____ | ____ | M_BM | M_BL | M_MM: "t",
+}
+
+// reverseTable maps a character to the segments that are on.
+// Used for calibrating on/off segment values.
+var reverseTable map[string]int = make(map[string]int)
+
+// Initialise reverse table lookup.
+func init() {
+	for v, s := range resultTable {
+		r, ok := reverseTable[s]
+		// If an entry already exists use the one that has least segments.
+		if ok {
+			if v > r {
+				continue
+			}
+		}
+		reverseTable[s] = v
+	}
 }
 
 func NewLcdDecoder() *LcdDecoder {
@@ -148,19 +164,17 @@ func (l *LcdDecoder) AddTemplate(name string, points []int, width int) error {
 	offbb2 := innerBB(bbox{t.tml, t.tmr, t.bb[BR], t.bb[BL]}, width+offMargin)
 	t.off = fillBB(offbb1)
 	t.off = append(t.off, fillBB(offbb2)...)
-	t.segbb = make([]bbox, SEGMENTS, SEGMENTS)
-	t.segments = make([]sample, SEGMENTS, SEGMENTS)
 	// The assignments must match the bit allocation in
 	// the lookup table.
-	t.segbb[S_TL] = segmentBB(t.bb[TL], t.ml, t.bb[TR], t.mr, width)
-	t.segbb[S_T] = segmentBB(t.bb[TL], t.bb[TR], t.bb[BL], t.bb[BR], width)
-	t.segbb[S_TR] = segmentBB(t.bb[TR], t.mr, t.bb[TL], t.ml, width)
-	t.segbb[S_BR] = segmentBB(t.mr, t.bb[BR], t.ml, t.bb[BL], width)
-	t.segbb[S_B] = segmentBB(t.bb[BL], t.bb[BR], t.ml, t.mr, width)
-	t.segbb[S_BL] = segmentBB(t.ml, t.bb[BL], t.mr, t.bb[BR], width)
-	t.segbb[S_M] = segmentBB(t.tml, t.tmr, t.bb[BL], t.bb[BR], width)
-	for i := range t.segbb {
-		t.segments[i] = fillBB(t.segbb[i])
+	t.seg[S_TL].bb = segmentBB(t.bb[TL], t.ml, t.bb[TR], t.mr, width)
+	t.seg[S_TM].bb = segmentBB(t.bb[TL], t.bb[TR], t.bb[BL], t.bb[BR], width)
+	t.seg[S_TR].bb = segmentBB(t.bb[TR], t.mr, t.bb[TL], t.ml, width)
+	t.seg[S_BR].bb = segmentBB(t.mr, t.bb[BR], t.ml, t.bb[BL], width)
+	t.seg[S_BM].bb = segmentBB(t.bb[BL], t.bb[BR], t.ml, t.mr, width)
+	t.seg[S_BL].bb = segmentBB(t.ml, t.bb[BL], t.mr, t.bb[BR], width)
+	t.seg[S_MM].bb = segmentBB(t.tml, t.tmr, t.bb[BL], t.bb[BR], width)
+	for i := range t.seg {
+		t.seg[i].points = fillBB(t.seg[i].bb)
 	}
 	l.templates[name] = t
 	return nil
@@ -170,22 +184,20 @@ func (l *LcdDecoder) AddTemplate(name string, points []int, width int) error {
 func (l *LcdDecoder) AddDigit(name string, x, y, min, max int) (int, error) {
 	t, ok := l.templates[name]
 	if !ok {
-		return 0, fmt.Errorf("Unknown LCD %s", name)
+		return 0, fmt.Errorf("Unknown template %s", name)
 	}
 	index := len(l.digits)
 	d := &Digit{}
 	d.index = index
-	d.min = make([]int, SEGMENTS, SEGMENTS)
-	d.max = make([]int, SEGMENTS, SEGMENTS)
 	d.bb = offsetBB(t.bb, x, y)
 	d.off = offset(t.off, x, y)
-	d.segments = make([]sample, SEGMENTS, SEGMENTS)
-	d.segbb = make([]bbox, SEGMENTS, SEGMENTS)
+	d.min = min
+	// Copy over the segment data from the template, offsetting the points
+	// using the digit's origin.
 	for i := 0; i < SEGMENTS; i++ {
-		d.min[i] = min
-		d.max[i] = max
-		d.segments[i] = offset(t.segments[i], x, y)
-		d.segbb[i] = offsetBB(t.segbb[i], x, y)
+		d.seg[i].bb = offsetBB(t.seg[i].bb, x, y)
+		d.seg[i].points = offset(t.seg[i].points, x, y)
+		d.seg[i].max = max
 	}
 	d.tmr.x = t.tmr.x + x
 	d.tmr.y = t.tmr.y + y
@@ -207,23 +219,8 @@ func (l *LcdDecoder) Decode(img image.Image) ([]string, []bool) {
 	strs := []string{}
 	ok := []bool{}
 	for _, d := range l.digits {
-		// Find off point.
-		// off := scaledSample(img, d.off, 0, 0x10000)
-		lookup := 0
-		p := make([]int, SEGMENTS)
-		on := l.threshold
-		//fmt.Printf("Digit %d Max = %d, Min = %d, On = %d, off = %d\n", i, d.max, d.min, on, off)
-		for seg, s := range d.segments {
-			p[seg] = scaledSample(img, s, d.min[seg], d.max[seg])
-			if p[seg] >= on {
-				lookup |= 1 << uint(seg)
-			}
-		}
-		result, found := resultTable[lookup]
-		//if !found {
-		//fmt.Printf("Element not found, on = %d, off = %d, pixels: %v\n", on, off, p)
-		//}
-		strs = append(strs, result)
+		char, found := d.scan(img, l.threshold)
+		strs = append(strs, char)
 		ok = append(ok, found)
 	}
 	return strs, ok
@@ -241,7 +238,7 @@ func scaledSample(img image.Image, slist sample, min, max int) int {
 		gscaled = max - 1
 	}
 	gpscale := (gscaled - min) * 100 / (max - min)
-	//fmt.Printf("grey = %d, len = %d, result = %d, (%d%%)\n", gacc, len(slist), gscaled, gpscale)
+	// fmt.Printf("scaled = %d, raw = %d, min = %d, max = %d\n", gscaled, gpscale, min, max)
 	return gpscale
 }
 
@@ -257,15 +254,39 @@ func rawSample(img image.Image, slist sample) int {
 }
 
 // Calibrate calculates the on and off values from the image provided.
-func (l *LcdDecoder) Calibrate(img image.Image) {
+func (l *LcdDecoder) Calibrate(img image.Image, digits string) (error) {
+	if len(digits) != len(l.digits) {
+		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(digits), len(l.digits))
+	}
+	for i := range l.digits {
+		char := digits[i:i+1]
+		mask, ok := reverseTable[char]
+		if !ok {
+			return fmt.Errorf("Unknown digit: %s", char)
+		}
+		l.digits[i].calibrateDigit(img, mask)
+	}
+	return nil
+}
+
+// Calibrate using one digit, and apply the calibration to all other digits.
+func (l *LcdDecoder) CalibrateUsingDigit(img image.Image, digit int, char string) error {
+	if digit < 0 || digit >= len(l.digits) {
+		return fmt.Errorf("Digit out of range (max value: %d)", len(l.digits)-1)
+	}
+	dig := l.digits[digit]
+	mask, ok := reverseTable[char]
+	if !ok {
+		return fmt.Errorf("Unknown digit: %s", char)
+	}
+	dig.calibrateDigit(img, mask)
 	for _, d := range l.digits {
-		// Find off point.
-		min := rawSample(img, d.off)
-		for seg, s := range d.segments {
-			d.min[seg] = min
-			d.max[seg] = rawSample(img, s)
+		d.min = dig.min
+		for i := range d.seg {
+			d.seg[i].max = dig.seg[i].max
 		}
 	}
+	return nil
 }
 
 // Mark the samples with a red cross.
@@ -278,9 +299,51 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA) {
 		ext := sample{d.tmr, d.tml, d.bmr, d.bml}
 		drawCross(img, ext, white)
 		drawPoint(img, d.off, green)
-		for i := range d.segments {
-			drawPoint(img, d.segments[i], red)
-			//drawBB(img, d.segbb[i], green)
+		for i := range d.seg {
+			drawPoint(img, d.seg[i].points, red)
+			//drawBB(img, d.seg[i].bb, green)
+		}
+	}
+}
+
+// Scan one digit and return the decoded character.
+func (d *Digit) scan(img image.Image, threshold int) (string, bool) {
+	lookup := 0
+	p := make([]int, SEGMENTS)
+	//fmt.Printf("Digit %d Max = %d, Min = %d, On = %d, off = %d\n", i, d.calib.max, d.calib.min, threshold, off)
+	for i := range d.seg {
+		p[i] = scaledSample(img, d.seg[i].points, d.min, d.seg[i].max)
+		if p[i] >= threshold {
+			lookup |= 1 << uint(i)
+		}
+	}
+	result, found := resultTable[lookup]
+	return result, found
+}
+
+// Calibrate one digit using an image.
+func (d *Digit) calibrateDigit(img image.Image, mask int) {
+	if mask == 0 {
+		return
+	}
+	var total, count int
+	// Find off average.
+	d.min = rawSample(img, d.off)
+	for i := range d.seg {
+		if ((1 << uint(i)) & mask) != 0 {
+			d.seg[i].max = rawSample(img, d.seg[i].points)
+			count++
+			total += d.seg[i].max
+		}
+	}
+	// For segments that are not included, use an average of the others.
+	if mask == ((1 << SEGMENTS) - 1) {
+		return
+	}
+	avg := total/count
+	for i := range d.seg {
+		if ((1 << uint(i)) & mask) == 0 {
+			d.seg[i].max = avg
 		}
 	}
 }
