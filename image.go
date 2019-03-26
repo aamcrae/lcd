@@ -48,6 +48,9 @@ func SaveImage(name string, img image.Image) error {
 
 // Rotate the image, using a max sized canvas.
 func RotateImage(image image.Image, angle float64) image.Image {
+	if angle == 0 {
+		return image
+	}
 	// Create a canvas of the maximum size required.
 	dx := float64(image.Bounds().Dx())
 	dy := float64(image.Bounds().Dy())
@@ -57,15 +60,13 @@ func RotateImage(image image.Image, angle float64) image.Image {
 	height := image.Bounds().Dy()
 	startx := (size - width) / 2
 	starty := (size - height) / 2
-	if angle != 0 {
-		c.RotateAbout(gg.Radians(angle), float64(size/2), float64(size/2))
-	}
+	c.RotateAbout(gg.Radians(angle), float64(size/2), float64(size/2))
 	c.DrawImage(image, startx, starty)
 	return c.Image()
 }
 
-// Get the image from the source URL.
-func GetSource(src string) (image.Image, error) {
+// Get an image from the source URL.
+func GetImage(src string) (image.Image, error) {
 	res, err := http.Get(src)
 	if err != nil {
 		return nil, err
