@@ -27,13 +27,13 @@ import (
 	"github.com/aamcrae/config"
 )
 
-func TestImg1(t *testing.T) {
+func TestImg(t *testing.T) {
 	runTest(t, "test1", "12345678")
-	// runTest(t, "test2", "12345678")
-	// runTest(t, "test3", "12345678")
-	// runTest(t, "test4", "12345678")
-	// runTest(t, "lcd6", "123456")
-	// runTest(t, "meter", "tot0087654")
+	runTest(t, "test2", "12345678")
+	runTest(t, "test3", "12345678")
+	runTest(t, "test4", "12345678")
+	runTest(t, "lcd6", "123456")
+	runTest(t, "meter", "tot0087654")
 }
 
 func runTest(t *testing.T, name string, result string) {
