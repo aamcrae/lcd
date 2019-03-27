@@ -28,12 +28,12 @@ import (
 )
 
 func TestImg(t *testing.T) {
-	runTest(t, "test1", "12345678", "12345678")
+	runTest(t, "test1", "12345678.", "12345678")
 	runTest(t, "test2", "12345678", "12345678")
 	runTest(t, "test3", "12345678", "12345678")
 	runTest(t, "test4", "12345678", "12345678")
 	runTest(t, "lcd6", "123.456", "123456")
-	runTest(t, "meter", "tot0087654", "tot0087654")
+	runTest(t, "meter", "tot008765.4", "tot0087654")
 }
 
 func runTest(t *testing.T, name, result, cal string) {
