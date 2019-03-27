@@ -53,6 +53,7 @@ type Template struct {
 	line     int
 	bb       bbox
 	off      sample
+	dp		 sample
 	min		 int
 	mr       point
 	ml       point
@@ -68,7 +69,9 @@ type Digit struct {
 	index    int
 	pos      point
 	bb       bbox
+	dp		 sample
 	min		 int
+	avgMax	 int
 	tmr      point
 	tml      point
 	bmr      point
@@ -141,15 +144,25 @@ func NewLcdDecoder() *LcdDecoder {
 }
 
 // Add a template.
-func (l *LcdDecoder) AddTemplate(name string, points []int, width int) error {
+func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) error {
 	if _, ok := l.templates[name]; ok {
 		return fmt.Errorf("Duplicate template entry: %s", name)
 	}
-	points = append([]int{0, 0}, points...)
+	if len(bb) != 6 {
+		return fmt.Errorf("Invalid bounding box length (expected 6, got %d)", len(bb))
+	}
+	if len(dp) != 0 && len(dp) != 2 {
+		return fmt.Errorf("Invalid decimal point")
+	}
+	// Prepend the implied TL origin.
+	bb = append([]int{0, 0}, bb...)
 	t := &Template{name: name, line: width}
 	for i := range t.bb {
-		t.bb[i].x = points[i*2]
-		t.bb[i].y = points[i*2+1]
+		t.bb[i].x = bb[i*2]
+		t.bb[i].y = bb[i*2+1]
+	}
+	if len(dp) == 2 {
+		t.dp = blockSample(point{dp[0], dp[1]}, (width + 1)/2)
 	}
 	// Initialise the sample lists
 	// Middle points.
@@ -191,7 +204,9 @@ func (l *LcdDecoder) AddDigit(name string, x, y, min, max int) (int, error) {
 	d.index = index
 	d.bb = offsetBB(t.bb, x, y)
 	d.off = offset(t.off, x, y)
+	d.dp = offset(t.dp, x, y)
 	d.min = min
+	d.avgMax = max
 	// Copy over the segment data from the template, offsetting the points
 	// using the digit's origin.
 	for i := 0; i < SEGMENTS; i++ {
@@ -199,6 +214,7 @@ func (l *LcdDecoder) AddDigit(name string, x, y, min, max int) (int, error) {
 		d.seg[i].points = offset(t.seg[i].points, x, y)
 		d.seg[i].max = max
 	}
+	d.dp = offset(t.dp, x, y)
 	d.tmr.x = t.tmr.x + x
 	d.tmr.y = t.tmr.y + y
 	d.tml.x = t.tml.x + x
@@ -318,6 +334,10 @@ func (d *Digit) scan(img image.Image, threshold int) (string, bool) {
 		}
 	}
 	result, found := resultTable[lookup]
+	// Check for decimal place.
+	if len(d.dp) != 0 && scaledSample(img, d.dp, d.min, d.avgMax) >= threshold {
+		result = result + "."
+	}
 	return result, found
 }
 
@@ -336,14 +356,14 @@ func (d *Digit) calibrateDigit(img image.Image, mask int) {
 			total += d.seg[i].max
 		}
 	}
+	d.avgMax = total/count
 	// For segments that are not included, use an average of the others.
 	if mask == ((1 << SEGMENTS) - 1) {
 		return
 	}
-	avg := total/count
 	for i := range d.seg {
 		if ((1 << uint(i)) & mask) == 0 {
-			d.seg[i].max = avg
+			d.seg[i].max = d.avgMax
 		}
 	}
 }

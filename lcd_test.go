@@ -28,15 +28,15 @@ import (
 )
 
 func TestImg(t *testing.T) {
-	runTest(t, "test1", "12345678")
-	runTest(t, "test2", "12345678")
-	runTest(t, "test3", "12345678")
-	runTest(t, "test4", "12345678")
-	runTest(t, "lcd6", "123456")
-	runTest(t, "meter", "tot0087654")
+	runTest(t, "test1", "12345678", "12345678")
+	runTest(t, "test2", "12345678", "12345678")
+	runTest(t, "test3", "12345678", "12345678")
+	runTest(t, "test4", "12345678", "12345678")
+	runTest(t, "lcd6", "123.456", "123456")
+	runTest(t, "meter", "tot0087654", "tot0087654")
 }
 
-func runTest(t *testing.T, name string, result string) {
+func runTest(t *testing.T, name, result, cal string) {
 	cname := name + ".config"
 	imagename := name + ".jpg"
 	conf, err := config.ParseFile(filepath.Join("testdata", cname))
@@ -55,7 +55,7 @@ func runTest(t *testing.T, name string, result string) {
 	if err != nil {
 		t.Fatalf("Can't decode %s: %v", imagename, err)
 	}
-	err = lcd.Calibrate(img, result)
+	err = lcd.Calibrate(img, cal)
 	if err != nil {
 		t.Errorf("Calibration Error for %s: %v", imagename, err)
 	}

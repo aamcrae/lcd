@@ -29,10 +29,13 @@ func CreateLcdDecoder(conf *config.Section) (*LcdDecoder, error) {
 		}
 		name := e.Tokens[0]
 		v := readInts(e.Tokens[1:])
-		if len(v) != 7 {
+		var dp []int
+		if len(v) == 9 {
+			dp = v[7:9]
+		} else if len(v) != 7 {
 			return nil, fmt.Errorf("Bad config for template at line %d", e.Lineno)
 		}
-		if err := l.AddTemplate(name, v[:6], v[6]); err != nil {
+		if err := l.AddTemplate(name, v[:6], dp, v[6]); err != nil {
 			return nil, fmt.Errorf("Invalid config at line %d: %v", e.Lineno, err)
 		}
 	}

@@ -18,8 +18,6 @@ import (
 	"math"
 )
 
-const fixVertex = true
-
 // Bounding box
 const (
 	TL = iota
@@ -114,9 +112,6 @@ func inBB(bb bbox, p point) bool {
 			count++
 		}
 	}
-	if fixVertex && vertex > 0 && count == 3 {
-		count--
-	}
 	return (count & 1) != 0
 }
 
@@ -175,6 +170,18 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// Build a square sample centered at p of width w.
+func blockSample(p point, w int) sample {
+	w = w / 2
+	var s sample
+	for x := p.x - w; x <= p.x + w; x++ {
+		for y := p.y - w; y <= p.y + w; y++ {
+			s = append(s, point{x, y})
+		}
+	}
+	return s
 }
 
 // return an adjusted point that is closer to e by the given amount.
