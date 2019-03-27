@@ -103,8 +103,16 @@ func inBB(bb bbox, p point) bool {
 				return onSegment(bb[i], p, bb[next])
 			}
 			// Check whether ray passes through the vertex, in which
-			// only count it once.
-			if p.y != bb[next].y {
+			// case only count it once.
+			if p.y == bb[i].y {
+				if bb[next].y <= p.y {
+					count++
+				}
+			} else if p.y == bb[next].y {
+				if bb[i].y <= p.y {
+					count++
+				}
+			} else {
 				count++
 			}
 		}
