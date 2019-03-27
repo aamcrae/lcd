@@ -63,7 +63,7 @@ func innerBB(b bbox, m int) bbox {
 // Return a list of all the points in the bounding box.
 func fillBB(bb bbox) []point {
 	points := []point{}
-	// Find the edges.
+	// Find min and max X & Y that completely covers the bounding box.
 	minx := bb[0].x
 	maxx := bb[0].x
 	miny := bb[0].y
@@ -93,6 +93,7 @@ func fillBB(bb bbox) []point {
 	return points
 }
 
+// inBB returns true if the point is in the bounding box.
 func inBB(bb bbox, p point) bool {
 	limit := point{10000, p.y}
 	var count int
@@ -120,6 +121,7 @@ func inBB(bb bbox, p point) bool {
 	return (count & 1) != 0
 }
 
+// intersect returns true if the lines (p1,q1) and (p2,q2) intersect.
 func intersect(p1, q1, p2, q2 point) bool {
 	o1 := orientation(p1, q1, p2)
 	o2 := orientation(p1, q1, q2)
@@ -208,7 +210,7 @@ func split(start, end point, sections int) []point {
 	return p
 }
 
-// Build a new point list, adding in x and y.
+// Build a new point list, adding x and y to each point.
 func offset(p []point, x, y int) []point {
 	np := make([]point, len(p), len(p))
 	for i := range p {
