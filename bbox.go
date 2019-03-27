@@ -95,13 +95,6 @@ func fillBB(bb bbox) []point {
 
 func inBB(bb bbox, p point) bool {
 	limit := point{10000, p.y}
-	// Check whether ray hits a vertex.
-	var vertex int
-	for _, v := range bb {
-		if v.y == p.y {
-			vertex++
-		}
-	}
 	var count int
 	for i := range bb {
 		next := (i + 1) % len(bb)
@@ -109,7 +102,11 @@ func inBB(bb bbox, p point) bool {
 			if orientation(bb[i], p, bb[next]) == 0 {
 				return onSegment(bb[i], p, bb[next])
 			}
-			count++
+			// Check whether ray passes through the vertex, in which
+			// only count it once.
+			if p.y != bb[next].y {
+				count++
+			}
 		}
 	}
 	return (count & 1) != 0

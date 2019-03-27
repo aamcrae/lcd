@@ -16,7 +16,6 @@ package lcd
 
 import (
 	"testing"
-	//"github.com/aamcrae/MeterMan/lcd"
 )
 
 func TestBbox(t *testing.T) {
@@ -25,7 +24,7 @@ func TestBbox(t *testing.T) {
 	in := []point{point{6, 10}, point{10, 6}, point{14, 10}, point{10, 9}, point{10, 10}}
 	for _, p := range in {
 		if !inBB(bb, p) {
-			t.Errorf("Expected true, got false for point (%d, %d)", p.x, p.y)
+			t.Fatalf("Expected true, got false for point (%d, %d)", p.x, p.y)
 		}
 	}
 	out := []point{point{0, 0}, point{15, 15}, point{5, 11}, point{4, 8}, point{11, 5}, point{4, 10}, point{16, 10}}
