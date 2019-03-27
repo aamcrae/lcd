@@ -30,54 +30,54 @@ var trace = false
 // Segments.
 const (
 	S_TL, M_TL = iota, 1 << iota // Top left
-	S_TM, M_TM   = iota, 1 << iota // Top middle
+	S_TM, M_TM = iota, 1 << iota // Top middle
 	S_TR, M_TR = iota, 1 << iota // Top right
 	S_BR, M_BR = iota, 1 << iota // Bottom right
-	S_BM, M_BM   = iota, 1 << iota // Bottom middle
+	S_BM, M_BM = iota, 1 << iota // Bottom middle
 	S_BL, M_BL = iota, 1 << iota // Bottom left
-	S_MM, M_MM   = iota, 1 << iota // Middle
+	S_MM, M_MM = iota, 1 << iota // Middle
 	SEGMENTS   = iota
 )
 
 type sample []point
 
 type segment struct {
-	bb		bbox
-	points	sample
-	max		int
+	bb     bbox
+	points sample
+	max    int
 }
 
 // Points are all relative to TL position.
 type Template struct {
-	name     string
-	line     int
-	bb       bbox
-	off      sample
-	dp		 sample
-	min		 int
-	mr       point
-	ml       point
-	tmr      point
-	tml      point
-	bmr      point
-	bml      point
-	seg		 [SEGMENTS]segment
+	name string
+	line int
+	bb   bbox
+	off  sample
+	dp   sample
+	min  int
+	mr   point
+	ml   point
+	tmr  point
+	tml  point
+	bmr  point
+	bml  point
+	seg  [SEGMENTS]segment
 }
 
 // All points are absolute.
 type Digit struct {
-	index    int
-	pos      point
-	bb       bbox
-	dp		 sample
-	min		 int
-	avgMax	 int
-	tmr      point
-	tml      point
-	bmr      point
-	bml      point
-	off      sample
-	seg		 [SEGMENTS]segment
+	index  int
+	pos    point
+	bb     bbox
+	dp     sample
+	min    int
+	avgMax int
+	tmr    point
+	tml    point
+	bmr    point
+	bml    point
+	off    sample
+	seg    [SEGMENTS]segment
 }
 
 type LcdDecoder struct {
@@ -162,7 +162,7 @@ func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) err
 		t.bb[i].y = bb[i*2+1]
 	}
 	if len(dp) == 2 {
-		t.dp = blockSample(point{dp[0], dp[1]}, (width + 1)/2)
+		t.dp = blockSample(point{dp[0], dp[1]}, (width+1)/2)
 	}
 	// Initialise the sample lists
 	// Middle points.
@@ -270,12 +270,12 @@ func rawSample(img image.Image, slist sample) int {
 }
 
 // Calibrate calculates the on and off values from the image provided.
-func (l *LcdDecoder) Calibrate(img image.Image, digits string) (error) {
+func (l *LcdDecoder) Calibrate(img image.Image, digits string) error {
 	if len(digits) != len(l.digits) {
 		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(digits), len(l.digits))
 	}
 	for i := range l.digits {
-		char := digits[i:i+1]
+		char := digits[i : i+1]
 		mask, ok := reverseTable[char]
 		if !ok {
 			return fmt.Errorf("Unknown digit: %s", char)
@@ -356,7 +356,7 @@ func (d *Digit) calibrateDigit(img image.Image, mask int) {
 			total += d.seg[i].max
 		}
 	}
-	d.avgMax = total/count
+	d.avgMax = total / count
 	// For segments that are not included, use an average of the others.
 	if mask == ((1 << SEGMENTS) - 1) {
 		return

@@ -183,8 +183,8 @@ func max(a, b int) int {
 func blockSample(p point, w int) sample {
 	w = w / 2
 	var s sample
-	for x := p.x - w; x <= p.x + w; x++ {
-		for y := p.y - w; y <= p.y + w; y++ {
+	for x := p.x - w; x <= p.x+w; x++ {
+		for y := p.y - w; y <= p.y+w; y++ {
 			s = append(s, point{x, y})
 		}
 	}
