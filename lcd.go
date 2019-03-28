@@ -90,40 +90,40 @@ type LcdDecoder struct {
 // and this table maps a subset of the values to a string.
 const ____ = 0
 
-var resultTable = map[int]string{
-	____ | ____ | ____ | ____ | ____ | ____ | ____: " ",
-	____ | ____ | ____ | ____ | ____ | ____ | M_MM: "-",
-	M_TL | M_TM | M_TR | M_BR | M_BM | M_BL | ____: "0",
-	____ | ____ | M_TR | M_BR | ____ | ____ | ____: "1",
-	____ | M_TM | M_TR | ____ | M_BM | M_BL | M_MM: "2",
-	____ | M_TM | M_TR | M_BR | M_BM | ____ | M_MM: "3",
-	M_TL | ____ | M_TR | M_BR | ____ | ____ | M_MM: "4",
-	M_TL | M_TM | ____ | M_BR | M_BM | ____ | M_MM: "5",
-	M_TL | M_TM | ____ | M_BR | M_BM | M_BL | M_MM: "6",
-	M_TL | M_TM | M_TR | M_BR | ____ | ____ | ____: "7",
-	____ | M_TM | M_TR | M_BR | ____ | ____ | ____: "7",
-	M_TL | M_TM | M_TR | M_BR | M_BM | M_BL | M_MM: "8",
-	M_TL | M_TM | M_TR | M_BR | M_BM | ____ | M_MM: "9",
-	M_TL | M_TM | M_TR | M_BR | ____ | M_BL | M_MM: "A",
-	M_TL | ____ | ____ | M_BR | M_BM | M_BL | M_MM: "b",
-	M_TL | M_TM | ____ | ____ | M_BM | M_BL | ____: "C",
-	____ | ____ | M_TR | M_BR | M_BM | M_BL | M_MM: "d",
-	M_TL | M_TM | ____ | ____ | M_BM | M_BL | M_MM: "E",
-	M_TL | M_TM | ____ | ____ | ____ | M_BL | M_MM: "F",
-	M_TL | ____ | ____ | M_BR | ____ | M_BL | M_MM: "h",
-	M_TL | ____ | M_TR | M_BR | ____ | M_BL | M_MM: "H",
-	M_TL | ____ | ____ | ____ | M_BM | M_BL | ____: "L",
-	M_TL | M_TM | M_TR | M_BR | ____ | M_BL | ____: "N",
-	____ | ____ | ____ | M_BR | ____ | M_BL | M_MM: "n",
-	____ | ____ | ____ | M_BR | M_BM | M_BL | M_MM: "o",
-	M_TL | M_TM | M_TR | ____ | ____ | M_BL | M_MM: "P",
-	____ | ____ | ____ | ____ | ____ | M_BL | M_MM: "r",
-	M_TL | ____ | ____ | ____ | M_BM | M_BL | M_MM: "t",
+var resultTable = map[int]byte{
+	____ | ____ | ____ | ____ | ____ | ____ | ____: ' ',
+	____ | ____ | ____ | ____ | ____ | ____ | M_MM: '-',
+	M_TL | M_TM | M_TR | M_BR | M_BM | M_BL | ____: '0',
+	____ | ____ | M_TR | M_BR | ____ | ____ | ____: '1',
+	____ | M_TM | M_TR | ____ | M_BM | M_BL | M_MM: '2',
+	____ | M_TM | M_TR | M_BR | M_BM | ____ | M_MM: '3',
+	M_TL | ____ | M_TR | M_BR | ____ | ____ | M_MM: '4',
+	M_TL | M_TM | ____ | M_BR | M_BM | ____ | M_MM: '5',
+	M_TL | M_TM | ____ | M_BR | M_BM | M_BL | M_MM: '6',
+	M_TL | M_TM | M_TR | M_BR | ____ | ____ | ____: '7',
+	____ | M_TM | M_TR | M_BR | ____ | ____ | ____: '7',
+	M_TL | M_TM | M_TR | M_BR | M_BM | M_BL | M_MM: '8',
+	M_TL | M_TM | M_TR | M_BR | M_BM | ____ | M_MM: '9',
+	M_TL | M_TM | M_TR | M_BR | ____ | M_BL | M_MM: 'A',
+	M_TL | ____ | ____ | M_BR | M_BM | M_BL | M_MM: 'b',
+	M_TL | M_TM | ____ | ____ | M_BM | M_BL | ____: 'C',
+	____ | ____ | M_TR | M_BR | M_BM | M_BL | M_MM: 'd',
+	M_TL | M_TM | ____ | ____ | M_BM | M_BL | M_MM: 'E',
+	M_TL | M_TM | ____ | ____ | ____ | M_BL | M_MM: 'F',
+	M_TL | ____ | ____ | M_BR | ____ | M_BL | M_MM: 'h',
+	M_TL | ____ | M_TR | M_BR | ____ | M_BL | M_MM: 'H',
+	M_TL | ____ | ____ | ____ | M_BM | M_BL | ____: 'L',
+	M_TL | M_TM | M_TR | M_BR | ____ | M_BL | ____: 'N',
+	____ | ____ | ____ | M_BR | ____ | M_BL | M_MM: 'n',
+	____ | ____ | ____ | M_BR | M_BM | M_BL | M_MM: 'o',
+	M_TL | M_TM | M_TR | ____ | ____ | M_BL | M_MM: 'P',
+	____ | ____ | ____ | ____ | ____ | M_BL | M_MM: 'r',
+	M_TL | ____ | ____ | ____ | M_BM | M_BL | M_MM: 't',
 }
 
 // reverseTable maps a character to the segments that are on.
 // Used for calibrating on/off segment values.
-var reverseTable map[string]int = make(map[string]int)
+var reverseTable map[byte]int = make(map[byte]int)
 
 // Initialise reverse table lookup.
 func init() {
@@ -275,10 +275,10 @@ func (l *LcdDecoder) Calibrate(img image.Image, digits string) error {
 		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(digits), len(l.digits))
 	}
 	for i := range l.digits {
-		char := digits[i : i+1]
+		char := byte(digits[i])
 		mask, ok := reverseTable[char]
 		if !ok {
-			return fmt.Errorf("Unknown digit: %s", char)
+			return fmt.Errorf("Unknown digit: %c", char)
 		}
 		l.digits[i].calibrateDigit(img, mask)
 	}
@@ -286,14 +286,14 @@ func (l *LcdDecoder) Calibrate(img image.Image, digits string) error {
 }
 
 // Calibrate using one digit, and apply the calibration to all other digits.
-func (l *LcdDecoder) CalibrateUsingDigit(img image.Image, digit int, char string) error {
+func (l *LcdDecoder) CalibrateUsingDigit(img image.Image, digit int, char byte) error {
 	if digit < 0 || digit >= len(l.digits) {
 		return fmt.Errorf("Digit out of range (max value: %d)", len(l.digits)-1)
 	}
 	dig := l.digits[digit]
 	mask, ok := reverseTable[char]
 	if !ok {
-		return fmt.Errorf("Unknown digit: %s", char)
+		return fmt.Errorf("Unknown digit: %c", char)
 	}
 	dig.calibrateDigit(img, mask)
 	for _, d := range l.digits {
@@ -305,7 +305,7 @@ func (l *LcdDecoder) CalibrateUsingDigit(img image.Image, digit int, char string
 	return nil
 }
 
-// Mark the samples with a red cross.
+// Mark the segments on this image.
 func (l *LcdDecoder) MarkSamples(img *image.RGBA) {
 	red := color.RGBA{255, 0, 0, 50}
 	green := color.RGBA{0, 255, 0, 50}
@@ -314,11 +314,12 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA) {
 		drawBB(img, d.bb, white)
 		ext := sample{d.tmr, d.tml, d.bmr, d.bml}
 		drawCross(img, ext, white)
-		drawPoint(img, d.off, green)
+		drawFill(img, d.off, green)
 		for i := range d.seg {
-			drawPoint(img, d.seg[i].points, red)
+			drawFill(img, d.seg[i].points, red)
 			//drawBB(img, d.seg[i].bb, green)
 		}
+		drawFill(img, d.dp, red)
 	}
 }
 
@@ -333,7 +334,8 @@ func (d *Digit) scan(img image.Image, threshold int) (string, bool) {
 			lookup |= 1 << uint(i)
 		}
 	}
-	result, found := resultTable[lookup]
+	chr, found := resultTable[lookup]
+	result := string([]byte{chr})
 	// Check for decimal place.
 	if len(d.dp) != 0 && scaledSample(img, d.dp, d.min, d.avgMax) >= threshold {
 		result = result + "."
@@ -372,11 +374,12 @@ func drawBB(img *image.RGBA, b bbox, c color.Color) {
 	drawCross(img, b[:], c)
 }
 
-func drawPoint(img *image.RGBA, s sample, c color.Color) {
+func drawFill(img *image.RGBA, s sample, c color.Color) {
 	for _, p := range s {
 		img.Set(p.x, p.y, c)
 	}
 }
+
 func drawCross(img *image.RGBA, s sample, c color.Color) {
 	for _, p := range s {
 		x := p.x
