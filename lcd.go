@@ -306,7 +306,7 @@ func (l *LcdDecoder) CalibrateUsingDigit(img image.Image, digit int, char byte) 
 }
 
 // Mark the segments on this image.
-func (l *LcdDecoder) MarkSamples(img *image.RGBA) {
+func (l *LcdDecoder) MarkSamples(img *image.RGBA, fill bool) {
 	red := color.RGBA{255, 0, 0, 50}
 	green := color.RGBA{0, 255, 0, 50}
 	white := color.RGBA{255, 255, 255, 255}
@@ -314,9 +314,13 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA) {
 		drawBB(img, d.bb, white)
 		ext := sample{d.tmr, d.tml, d.bmr, d.bml}
 		drawCross(img, ext, white)
-		drawFill(img, d.off, green)
+		if fill {
+			drawFill(img, d.off, green)
+		}
 		for i := range d.seg {
-			drawFill(img, d.seg[i].points, red)
+			if fill {
+				drawFill(img, d.seg[i].points, red)
+			}
 			//drawBB(img, d.seg[i].bb, green)
 		}
 		drawFill(img, d.dp, red)
