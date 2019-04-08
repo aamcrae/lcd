@@ -23,7 +23,6 @@ import (
 // Default threshold
 const defaultThreshold = 50
 const offMargin = 4
-const onMargin = 2
 
 var trace = false
 
