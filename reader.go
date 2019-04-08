@@ -106,17 +106,14 @@ func (r *Reader) Calibrate(img image.Image) {
 func (r *Reader) Read(img image.Image) (string, float64, error) {
 	r.current = img
 	vals, vok := r.decoder.Decode(img)
-	bad := false
-	var seg int
+	var badSeg []string
 	for s, okDigit := range vok {
 		if !okDigit {
-			bad = true
-			seg = s
-			break
+			badSeg = append(badSeg, fmt.Sprintf("%d", s))
 		}
 	}
-	if bad {
-		return "", 0.0, fmt.Errorf("Bad read on segment %d", seg)
+	if len(badSeg) != 0 {
+		return "", 0.0, fmt.Errorf("Bad read on segment[s] %s", strings.Join(badSeg, ","))
 	}
 	key := strings.Join(vals[0:4], "")
 	value := strings.Join(vals[4:], "")
