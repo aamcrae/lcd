@@ -113,12 +113,14 @@ func (r *Reader) Read(img image.Image) (string, float64, error) {
 		}
 	}
 	if len(badSeg) != 0 {
+		r.decoder.DecodeError()
 		return "", 0.0, fmt.Errorf("Bad read on segment[s] %s", strings.Join(badSeg, ","))
 	}
 	key := strings.Join(vals[0:4], "")
 	value := strings.Join(vals[4:], "")
 	m, ok := measures[key]
 	if !ok {
+		r.decoder.DecodeError()
 		return "", 0.0, fmt.Errorf("Unknown key (%s) value %s", key, value)
 	}
 	handler := m.handler
@@ -169,7 +171,6 @@ func handlerAccum(r *Reader, m *measure, key, value string) (string, float64, er
 
 func handlerCalibrate(r *Reader, m *measure, key, value string) (string, float64, error) {
 	if value == "88888888" {
-		SaveImage("/tmp/cal.jpg", r.current)
 		if *recalibrate {
 			r.Calibrate(r.current)
 		}
@@ -177,7 +178,7 @@ func handlerCalibrate(r *Reader, m *measure, key, value string) (string, float64
 	return "", 0.0, nil
 }
 
-func (*Reader) getNumber(m *measure, value string) (float64, error) {
+func (r *Reader) getNumber(m *measure, value string) (float64, error) {
 	sv := value
 	scale := m.scale
 	if sv[0] == '-' {
@@ -186,6 +187,7 @@ func (*Reader) getNumber(m *measure, value string) (float64, error) {
 	}
 	v, err := strconv.ParseFloat(strings.Trim(sv, " "), 64)
 	if err != nil {
+		r.decoder.DecodeError()
 		return 0, fmt.Errorf("%s: bad number (%v)\n", value, err)
 	}
 	return v / scale, nil

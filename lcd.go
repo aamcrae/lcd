@@ -38,6 +38,20 @@ const (
 	SEGMENTS   = iota
 )
 
+// Per-digit calibration data.
+type calDigit struct {
+	min	   int
+	avgMax int
+	max	   [SEGMENTS]int
+}
+
+// Collected calibration data for entire image.
+type calData struct {
+	calib []*calDigit
+	scans  int
+	errors int
+}
+
 type sample []point
 
 type segment struct {
@@ -69,20 +83,21 @@ type Digit struct {
 	pos    point
 	bb     bbox
 	dp     sample
-	min    int
-	avgMax int
 	tmr    point
 	tml    point
 	bmr    point
 	bml    point
 	off    sample
 	seg    [SEGMENTS]segment
+	cd     *calDigit
 }
 
 type LcdDecoder struct {
 	digits    []*Digit
 	templates map[string]*Template
 	threshold int
+	cal		  *calData
+	calHistory []*calData
 }
 
 // There are 128 possible values in a 7 segment display,
@@ -139,7 +154,8 @@ func init() {
 }
 
 func NewLcdDecoder() *LcdDecoder {
-	return &LcdDecoder{[]*Digit{}, map[string]*Template{}, defaultThreshold}
+	var c calData
+	return &LcdDecoder{[]*Digit{}, map[string]*Template{}, defaultThreshold, &c, []*calData{&c}}
 }
 
 // Add a template.
@@ -204,14 +220,13 @@ func (l *LcdDecoder) AddDigit(name string, x, y, min, max int) (int, error) {
 	d.bb = offsetBB(t.bb, x, y)
 	d.off = offset(t.off, x, y)
 	d.dp = offset(t.dp, x, y)
-	d.min = min
-	d.avgMax = max
+	cd := &calDigit{min: min, avgMax: max}
 	// Copy over the segment data from the template, offsetting the points
 	// using the digit's origin.
 	for i := 0; i < SEGMENTS; i++ {
 		d.seg[i].bb = offsetBB(t.seg[i].bb, x, y)
 		d.seg[i].points = offset(t.seg[i].points, x, y)
-		d.seg[i].max = max
+		cd.max[i] = max
 	}
 	d.dp = offset(t.dp, x, y)
 	d.tmr.x = t.tmr.x + x
@@ -222,6 +237,7 @@ func (l *LcdDecoder) AddDigit(name string, x, y, min, max int) (int, error) {
 	d.bmr.y = t.bmr.y + y
 	d.bml.x = t.bml.x + x
 	d.bml.y = t.bml.y + y
+	l.cal.calib = append(l.cal.calib, cd)
 	l.digits = append(l.digits, d)
 	return index, nil
 }
@@ -233,12 +249,17 @@ func (l *LcdDecoder) SetThreshold(threshold int) {
 func (l *LcdDecoder) Decode(img image.Image) ([]string, []bool) {
 	strs := []string{}
 	ok := []bool{}
-	for _, d := range l.digits {
-		char, found := d.scan(img, l.threshold)
+	l.cal.scans++
+	for i, d := range l.digits {
+		char, found := d.scan(img, l.cal.calib[i], l.threshold)
 		strs = append(strs, char)
 		ok = append(ok, found)
 	}
 	return strs, ok
+}
+
+func (l *LcdDecoder) DecodeError() {
+	l.cal.errors++
 }
 
 // Return an average of the sampled points as a int
@@ -273,34 +294,17 @@ func (l *LcdDecoder) Calibrate(img image.Image, digits string) error {
 	if len(digits) != len(l.digits) {
 		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(digits), len(l.digits))
 	}
+	newc := new(calData)
 	for i := range l.digits {
 		char := byte(digits[i])
 		mask, ok := reverseTable[char]
-		if !ok {
-			return fmt.Errorf("Unknown digit: %c", char)
+		if !ok || mask == 0 {
+			return fmt.Errorf("Unknown or blank digit: %c", char)
 		}
-		l.digits[i].calibrateDigit(img, mask)
+		newc.calib = append(newc.calib, l.digits[i].calibrateDigit(img, mask))
 	}
-	return nil
-}
-
-// Calibrate using one digit, and apply the calibration to all other digits.
-func (l *LcdDecoder) CalibrateUsingDigit(img image.Image, digit int, char byte) error {
-	if digit < 0 || digit >= len(l.digits) {
-		return fmt.Errorf("Digit out of range (max value: %d)", len(l.digits)-1)
-	}
-	dig := l.digits[digit]
-	mask, ok := reverseTable[char]
-	if !ok {
-		return fmt.Errorf("Unknown digit: %c", char)
-	}
-	dig.calibrateDigit(img, mask)
-	for _, d := range l.digits {
-		d.min = dig.min
-		for i := range d.seg {
-			d.seg[i].max = dig.seg[i].max
-		}
-	}
+	l.calHistory = append(l.calHistory, newc)
+	l.cal = newc
 	return nil
 }
 
@@ -327,50 +331,50 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA, fill bool) {
 }
 
 // Scan one digit and return the decoded character.
-func (d *Digit) scan(img image.Image, threshold int) (string, bool) {
+func (d *Digit) scan(img image.Image, c *calDigit, threshold int) (string, bool) {
 	lookup := 0
-	p := make([]int, SEGMENTS)
 	//fmt.Printf("Digit %d Max = %d, Min = %d, On = %d, off = %d\n", i, d.calib.max, d.calib.min, threshold, off)
 	for i := range d.seg {
-		p[i] = scaledSample(img, d.seg[i].points, d.min, d.seg[i].max)
-		if p[i] >= threshold {
+		s := scaledSample(img, d.seg[i].points, c.min, c.max[i])
+		if s >= threshold {
 			lookup |= 1 << uint(i)
 		}
 	}
 	chr, found := resultTable[lookup]
 	result := string([]byte{chr})
 	// Check for decimal place.
-	if len(d.dp) != 0 && scaledSample(img, d.dp, d.min, d.avgMax) >= threshold {
+	if len(d.dp) != 0 && scaledSample(img, d.dp, c.min, c.avgMax) >= threshold {
 		result = result + "."
 	}
 	return result, found
 }
 
 // Calibrate one digit using an image.
-func (d *Digit) calibrateDigit(img image.Image, mask int) {
+func (d *Digit) calibrateDigit(img image.Image, mask int) (*calDigit) {
 	if mask == 0 {
-		return
+		return nil
 	}
+	cd := new(calDigit)
 	var total, count int
 	// Find off average.
-	d.min = rawSample(img, d.off)
+	cd.min = rawSample(img, d.off)
 	for i := range d.seg {
 		if ((1 << uint(i)) & mask) != 0 {
-			d.seg[i].max = rawSample(img, d.seg[i].points)
+			cd.max[i] = rawSample(img, d.seg[i].points)
 			count++
-			total += d.seg[i].max
+			total += cd.max[i]
 		}
 	}
-	d.avgMax = total / count
+	cd.avgMax = total / count
 	// For segments that are not included, use an average of the others.
-	if mask == ((1 << SEGMENTS) - 1) {
-		return
-	}
-	for i := range d.seg {
-		if ((1 << uint(i)) & mask) == 0 {
-			d.seg[i].max = d.avgMax
+	if mask != ((1 << SEGMENTS) - 1) {
+		for i := range d.seg {
+			if ((1 << uint(i)) & mask) == 0 {
+				cd.max[i] = cd.avgMax
+			}
 		}
 	}
+	return cd
 }
 
 func drawBB(img *image.RGBA, b bbox, c color.Color) {
