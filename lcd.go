@@ -23,6 +23,7 @@ import (
 // Default threshold
 const defaultThreshold = 50
 const offMargin = 4
+const historySize = 10
 
 var trace = false
 
@@ -97,7 +98,7 @@ type LcdDecoder struct {
 	templates map[string]*Template
 	threshold int
 	cal		  *calData
-	calHistory []*calData
+	calHistory [historySize]*calData
 }
 
 // There are 128 possible values in a 7 segment display,
@@ -155,7 +156,11 @@ func init() {
 
 func NewLcdDecoder() *LcdDecoder {
 	var c calData
-	return &LcdDecoder{[]*Digit{}, map[string]*Template{}, defaultThreshold, &c, []*calData{&c}}
+	l := &LcdDecoder{[]*Digit{}, map[string]*Template{}, defaultThreshold, &c}
+	for i := range l.calHistory {
+		l.calHistory[i] = &c
+	}
+	return l
 }
 
 // Add a template.
@@ -246,6 +251,7 @@ func (l *LcdDecoder) SetThreshold(threshold int) {
 	l.threshold = threshold
 }
 
+// Decode the LCD digits in the image.
 func (l *LcdDecoder) Decode(img image.Image) ([]string, []bool) {
 	strs := []string{}
 	ok := []bool{}
@@ -258,35 +264,9 @@ func (l *LcdDecoder) Decode(img image.Image) ([]string, []bool) {
 	return strs, ok
 }
 
+// Register a failed decode.
 func (l *LcdDecoder) DecodeError() {
 	l.cal.errors++
-}
-
-// Return an average of the sampled points as a int
-// between 0 and 100, where 0 is lightest and 100 is darkest using
-// the scale provided.
-func scaledSample(img image.Image, slist sample, min, max int) int {
-	gscaled := rawSample(img, slist)
-	if gscaled < min {
-		gscaled = min
-	}
-	if gscaled >= max {
-		gscaled = max - 1
-	}
-	gpscale := (gscaled - min) * 100 / (max - min)
-	// fmt.Printf("scaled = %d, raw = %d, min = %d, max = %d\n", gscaled, gpscale, min, max)
-	return gpscale
-}
-
-// Take a raw sample.
-func rawSample(img image.Image, slist sample) int {
-	var gacc int
-	for _, s := range slist {
-		c := img.At(s.x, s.y)
-		pix := color.Gray16Model.Convert(c).(color.Gray16)
-		gacc += int(pix.Y)
-	}
-	return 0x10000 - gacc/len(slist)
 }
 
 // Calibrate calculates the on and off values from the image provided.
@@ -303,8 +283,8 @@ func (l *LcdDecoder) Calibrate(img image.Image, digits string) error {
 		}
 		newc.calib = append(newc.calib, l.digits[i].calibrateDigit(img, mask))
 	}
-	l.calHistory = append(l.calHistory, newc)
 	l.cal = newc
+	
 	return nil
 }
 
@@ -375,6 +355,31 @@ func (d *Digit) calibrateDigit(img image.Image, mask int) (*calDigit) {
 		}
 	}
 	return cd
+}
+
+// Return an average of the sampled points as a int
+// between 0 and 100, where 0 is lightest and 100 is darkest using
+// the scale provided.
+func scaledSample(img image.Image, slist sample, min, max int) int {
+	gscaled := rawSample(img, slist)
+	if gscaled < min {
+		gscaled = min
+	}
+	if gscaled >= max {
+		gscaled = max - 1
+	}
+	return (gscaled - min) * 100 / (max - min)
+}
+
+// Take a raw sample.
+func rawSample(img image.Image, slist sample) int {
+	var gacc int
+	for _, s := range slist {
+		c := img.At(s.x, s.y)
+		pix := color.Gray16Model.Convert(c).(color.Gray16)
+		gacc += int(pix.Y)
+	}
+	return 0x10000 - gacc/len(slist)
 }
 
 func drawBB(img *image.RGBA, b bbox, c color.Color) {
