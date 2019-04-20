@@ -147,11 +147,11 @@ func (r *Reader) Calibrate(img image.Image) {
 
 func (r *Reader) Read(img image.Image) (string, float64, error) {
 	r.current = img
-	vals, vok := r.decoder.Decode(img)
+	vals, vok, bits := r.decoder.Decode(img)
 	var badSeg []string
 	for s, okDigit := range vok {
 		if !okDigit {
-			badSeg = append(badSeg, fmt.Sprintf("%d", s))
+			badSeg = append(badSeg, fmt.Sprintf("%d[%02x]", s, bits[s]))
 		}
 	}
 	if len(badSeg) != 0 {
