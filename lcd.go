@@ -22,7 +22,8 @@ import (
 
 // Default threshold
 const defaultThreshold = 50
-const offMargin = 4
+const offMargin = 6
+const onMargin = 2
 
 var trace = false
 
@@ -178,13 +179,13 @@ func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) err
 	t.off = append(t.off, fillBB(offbb2)...)
 	// The assignments must match the bit allocation in
 	// the lookup table.
-	t.seg[S_TL].bb = segmentBB(t.bb[TL], t.ml, t.bb[TR], t.mr, width)
-	t.seg[S_TM].bb = segmentBB(t.bb[TL], t.bb[TR], t.bb[BL], t.bb[BR], width)
-	t.seg[S_TR].bb = segmentBB(t.bb[TR], t.mr, t.bb[TL], t.ml, width)
-	t.seg[S_BR].bb = segmentBB(t.mr, t.bb[BR], t.ml, t.bb[BL], width)
-	t.seg[S_BM].bb = segmentBB(t.bb[BL], t.bb[BR], t.ml, t.mr, width)
-	t.seg[S_BL].bb = segmentBB(t.ml, t.bb[BL], t.mr, t.bb[BR], width)
-	t.seg[S_MM].bb = segmentBB(t.tml, t.tmr, t.bb[BL], t.bb[BR], width)
+	t.seg[S_TL].bb = segmentBB(t.bb[TL], t.ml, t.bb[TR], t.mr, width, onMargin)
+	t.seg[S_TM].bb = segmentBB(t.bb[TL], t.bb[TR], t.bb[BL], t.bb[BR], width, onMargin)
+	t.seg[S_TR].bb = segmentBB(t.bb[TR], t.mr, t.bb[TL], t.ml, width, onMargin)
+	t.seg[S_BR].bb = segmentBB(t.mr, t.bb[BR], t.ml, t.bb[BL], width, onMargin)
+	t.seg[S_BM].bb = segmentBB(t.bb[BL], t.bb[BR], t.ml, t.mr, width, onMargin)
+	t.seg[S_BL].bb = segmentBB(t.ml, t.bb[BL], t.mr, t.bb[BR], width, onMargin)
+	t.seg[S_MM].bb = segmentBB(t.tml, t.tmr, t.bb[BL], t.bb[BR], width, onMargin)
 	for i := range t.seg {
 		t.seg[i].points = fillBB(t.seg[i].bb)
 	}
