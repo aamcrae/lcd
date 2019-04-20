@@ -231,15 +231,23 @@ func (l *LcdDecoder) SetThreshold(threshold int) {
 	l.threshold = threshold
 }
 
-func (l *LcdDecoder) Decode(img image.Image) ([]string, []bool) {
+func (l *LcdDecoder) Decode(img image.Image) ([]string, []bool, []int) {
 	strs := []string{}
-	ok := []bool{}
+	valid := []bool{}
+	bits := []int{}
 	for _, d := range l.digits {
-		char, found := d.scan(img, l.threshold)
-		strs = append(strs, char)
-		ok = append(ok, found)
+		segments := d.scan(img, l.threshold)
+		chr, ok := resultTable[segments]
+		result := string([]byte{chr})
+		// Check for decimal place.
+		if d.decimal(img, l.threshold) {
+			result = result + "."
+		}
+		strs = append(strs, result)
+		valid = append(valid, ok)
+		bits = append(bits, segments)
 	}
-	return strs, ok
+	return strs, valid, bits
 }
 
 // Return an average of the sampled points as a int
@@ -328,7 +336,7 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA, fill bool) {
 }
 
 // Scan one digit and return the decoded character.
-func (d *Digit) scan(img image.Image, threshold int) (string, bool) {
+func (d *Digit) scan(img image.Image, threshold int) int {
 	lookup := 0
 	p := make([]int, SEGMENTS)
 	//fmt.Printf("Digit %d Max = %d, Min = %d, On = %d, off = %d\n", i, d.calib.max, d.calib.min, threshold, off)
@@ -338,13 +346,12 @@ func (d *Digit) scan(img image.Image, threshold int) (string, bool) {
 			lookup |= 1 << uint(i)
 		}
 	}
-	chr, found := resultTable[lookup]
-	result := string([]byte{chr})
-	// Check for decimal place.
-	if len(d.dp) != 0 && scaledSample(img, d.dp, d.min, d.avgMax) >= threshold {
-		result = result + "."
-	}
-	return result, found
+	return lookup
+}
+
+// Return true if decimal place is on.
+func (d *Digit) decimal(img image.Image, threshold int) bool {
+	return len(d.dp) != 0 && scaledSample(img, d.dp, d.min, d.avgMax) >= threshold
 }
 
 // Calibrate one digit using an image.

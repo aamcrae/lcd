@@ -59,12 +59,12 @@ func runTest(t *testing.T, name, result, cal string) {
 	if err != nil {
 		t.Errorf("Calibration Error for %s: %v", imagename, err)
 	}
-	str, found := lcd.Decode(img)
+	str, found, bits := lcd.Decode(img)
 	got := strings.Join(str, "")
 	if got != result {
 		for i, f := range found {
 			if !f {
-				fmt.Printf("Element %d not found\n", i)
+				fmt.Printf("Element %d not found, bits = 0x%02x\n", i, bits[i])
 			}
 		}
 		t.Fatalf("For test %s, expected %s, found %s", name, result, got)
