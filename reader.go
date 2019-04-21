@@ -28,7 +28,7 @@ import (
 
 var recalibrate = flag.Bool("recalibrate", false, "Recalibrate with new image")
 
-const calibrateDelay = time.Minute * 10
+const calibrateDelay = time.Minute * 5
 
 type limit struct {
 	last  time.Time
