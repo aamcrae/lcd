@@ -37,12 +37,12 @@ type bbox [4]point
 // Shrink the base by width as well.
 func segmentBB(s1, s2, e1, e2 point, w, m int) bbox {
 	var bb bbox
-	bb[TL] = adjust(s1, s2, w + m)
-	bb[TR] = adjust(s2, s1, w + m)
-	ne1 := adjust(e1, e2, w + m)
-	ne2 := adjust(e2, e1, w + m)
-	bb[BL] = adjust(bb[TL], ne1, w - m)
-	bb[BR] = adjust(bb[TR], ne2, w - m)
+	bb[TL] = adjust(s1, s2, w+m)
+	bb[TR] = adjust(s2, s1, w+m)
+	ne1 := adjust(e1, e2, w+m)
+	ne2 := adjust(e2, e1, w+m)
+	bb[BL] = adjust(bb[TL], ne1, w-m)
+	bb[BR] = adjust(bb[TR], ne2, w-m)
 	bb[TL] = adjust(bb[TL], ne1, m)
 	bb[TR] = adjust(bb[TR], ne2, m)
 	return bb

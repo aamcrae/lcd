@@ -48,9 +48,9 @@ const (
 type sample []point
 
 type segment struct {
-	bb     bbox
-	points sample
-	max    int
+	bb         bbox
+	points     sample
+	max        int
 	maxHistory []int
 }
 
@@ -74,19 +74,19 @@ type Template struct {
 
 // All points are absolute.
 type Digit struct {
-	index  int
-	pos    point
-	bb     bbox
-	dp     sample
-	tmr    point
-	tml    point
-	bmr    point
-	bml    point
-	off    sample
-	min    int
+	index      int
+	pos        point
+	bb         bbox
+	dp         sample
+	tmr        point
+	tml        point
+	bmr        point
+	bml        point
+	off        sample
+	min        int
 	minHistory []int
-	avgMax int
-	seg    [SEGMENTS]segment
+	avgMax     int
+	seg        [SEGMENTS]segment
 }
 
 type LcdDecoder struct {
@@ -334,7 +334,7 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			d.avgMax = v[3]
 			d.minHistory = append(d.minHistory, v[4:]...)
 		} else {
-			d.seg[v[1]].max  = v[2]
+			d.seg[v[1]].max = v[2]
 			d.seg[v[1]].maxHistory = append(d.seg[v[1]].maxHistory, v[3:]...)
 		}
 	}
@@ -405,7 +405,7 @@ func (d *Digit) calibrateDigit(img image.Image, mask int) {
 
 // Add a new value and return the average.
 func mavg(l *[]int, v int) int {
-	for len(*l) <= (historySize  + 1) {
+	for len(*l) <= (historySize + 1) {
 		*l = append(*l, v)
 	}
 	*l = (*l)[1:]

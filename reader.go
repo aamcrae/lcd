@@ -42,7 +42,7 @@ type Reader struct {
 	current         image.Image
 	lastCalibration time.Time
 	limits          map[string]limit
-	calFile			string
+	calFile         string
 }
 
 type measure struct {
@@ -94,7 +94,7 @@ func NewReader(c *config.Section, trace bool) (*Reader, error) {
 		}
 	}
 	cf, err := c.GetArg("calibration")
-	r := &Reader{trace: trace, decoder: d, limits: map[string]limit{}, calFile : cf}
+	r := &Reader{trace: trace, decoder: d, limits: map[string]limit{}, calFile: cf}
 	r.Restore()
 	s, err := c.GetArg("calibrate")
 	if err != nil {
