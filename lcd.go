@@ -15,9 +15,14 @@
 package lcd
 
 import (
+	"bufio"
 	"fmt"
 	"image"
 	"image/color"
+	"io"
+	"log"
+	"strconv"
+	"strings"
 )
 
 // Default threshold
@@ -286,6 +291,70 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA, fill bool) {
 			//drawBB(img, d.seg[i].bb, green)
 		}
 		drawFill(img, d.dp, red)
+	}
+}
+
+// Restore the calibration data from a saved cache.
+// Format is a line of CSV:
+// digit,-1,min,maxAvg,minhistory...
+// digit,segment,max,maxhistory...
+func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
+	scanner := bufio.NewScanner(r)
+	var line int
+	for scanner.Scan() {
+		line++
+		var v []int
+		for _, s := range strings.Split(scanner.Text(), ",") {
+			if val, err := strconv.ParseInt(s, 10, 32); err != nil {
+				log.Printf("RestoreCalibration: line %d: %v", line, err)
+				break
+			} else {
+				v = append(v, int(val))
+			}
+		}
+		if len(v) < 3 {
+			log.Printf("RestoreCalibration: line %d, too few fields (%d)", line, len(v))
+			continue
+		}
+		if v[0] < 0 || v[0] >= len(l.digits) {
+			log.Printf("RestoreCalibration: line %d, out of range digit (%d)", line, v[0])
+			continue
+		}
+		if v[1] < -1 || v[1] >= SEGMENTS {
+			log.Printf("RestoreCalibration: line %d, out of range segment (%d)", line, v[1])
+			continue
+		}
+		d := l.digits[v[0]]
+		if v[1] == -1 {
+			if len(v) < 4 {
+				log.Printf("RestoreCalibration: line %d, too few fields (%d)", line, len(v))
+				continue
+			}
+			d.min = v[2]
+			d.avgMax = v[3]
+			d.minHistory = append(d.minHistory, v[4:]...)
+		} else {
+			d.seg[v[1]].max  = v[2]
+			d.seg[v[1]].maxHistory = append(d.seg[v[1]].maxHistory, v[3:]...)
+		}
+	}
+}
+
+// Save the calibration data.
+func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
+	for i, d := range l.digits {
+		fmt.Fprintf(w, "%d,-1,%d,%d", i, d.min, d.avgMax)
+		for _, h := range d.minHistory {
+			fmt.Fprintf(w, ",%d", h)
+		}
+		fmt.Fprintf(w, "\n")
+		for s := range d.seg {
+			fmt.Fprintf(w, "%d,%d,%d", i, s, d.seg[s].max)
+			for _, h := range d.seg[s].maxHistory {
+				fmt.Fprintf(w, ",%d", h)
+			}
+			fmt.Fprintf(w, "\n")
+		}
 	}
 }
 

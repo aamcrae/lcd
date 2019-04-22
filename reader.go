@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"image"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -26,7 +27,7 @@ import (
 	"github.com/aamcrae/config"
 )
 
-var recalibrate = flag.Bool("recalibrate", false, "Recalibrate with new image")
+var recalibrate = flag.Bool("recalibrate", true, "Recalibrate with new image")
 
 const calibrateDelay = time.Minute * 5
 
@@ -41,6 +42,7 @@ type Reader struct {
 	current         image.Image
 	lastCalibration time.Time
 	limits          map[string]limit
+	calFile			string
 }
 
 type measure struct {
@@ -91,7 +93,45 @@ func NewReader(c *config.Section, trace bool) (*Reader, error) {
 			log.Printf("Setting range of '%s' to [%f, %f]\n", e.Tokens[0], min, max)
 		}
 	}
-	return &Reader{trace: trace, decoder: d, limits: map[string]limit{}}, nil
+	cf, err := c.GetArg("calibration")
+	r := &Reader{trace: trace, decoder: d, limits: map[string]limit{}, calFile : cf}
+	r.Restore()
+	s, err := c.GetArg("calibrate")
+	if err != nil {
+		img, err := ReadImage(s)
+		if err != nil {
+			return nil, err
+		}
+		r.Calibrate(img)
+	}
+	return r, nil
+}
+
+// Restore any saved calibration.
+func (r *Reader) Restore() {
+	if len(r.calFile) != 0 {
+		if f, err := os.Open(r.calFile); err != nil {
+			log.Printf("%s: %v\n", r.calFile, err)
+		} else {
+			r.decoder.RestoreCalibration(f)
+			f.Close()
+		}
+	}
+}
+
+// Save the current calibration.
+func (r *Reader) Save() {
+	if len(r.calFile) != 0 {
+		if f, err := os.Create(r.calFile); err != nil {
+			log.Printf("Calibration file %s: %v\n", r.calFile, err)
+		} else {
+			r.decoder.SaveCalibration(f)
+			err := f.Close()
+			if err != nil {
+				log.Printf("Save calibration: %s: %v\n", r.calFile, err)
+			}
+		}
+	}
 }
 
 func (r *Reader) Calibrate(img image.Image) {
@@ -100,6 +140,8 @@ func (r *Reader) Calibrate(img image.Image) {
 		r.lastCalibration = now
 		log.Printf("Recalibrating")
 		r.decoder.Calibrate(img, "888888888888")
+		// Save the calibration data.
+		r.Save()
 	}
 }
 

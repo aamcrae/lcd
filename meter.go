@@ -64,14 +64,6 @@ func meterReader(conf *config.Config, wr chan<- core.Input) error {
 	if err != nil {
 		return err
 	}
-	s := sect.Get("calibrate")
-	if len(s) == 1 && len(s[0].Tokens) == 1 {
-		img, err := ReadImage(s[0].Tokens[0])
-		if err != nil {
-			return err
-		}
-		r.Calibrate(img)
-	}
 	core.AddGauge(core.G_TP)
 	core.AddAccum(core.A_IN_TOTAL, false)
 	core.AddAccum(core.A_OUT_TOTAL, false)
