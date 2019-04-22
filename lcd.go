@@ -29,7 +29,7 @@ import (
 const defaultThreshold = 50
 const offMargin = 6
 const onMargin = 2
-const historySize = 10
+const historySize = 5
 
 var trace = false
 
@@ -415,7 +415,7 @@ func mavg(l *[]int, v int) int {
 	for len(*l) <= (historySize + 1) {
 		*l = append(*l, v)
 	}
-	*l = (*l)[1:]
+	*l = (*l)[1:historySize + 1]
 	var t int
 	for _, d := range *l {
 		t += d
