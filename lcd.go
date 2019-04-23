@@ -27,7 +27,7 @@ import (
 
 // Default threshold
 const defaultThreshold = 50
-const offMargin = 6
+const offMargin = 5
 const onMargin = 2
 const historySize = 5
 
@@ -90,9 +90,9 @@ type Digit struct {
 }
 
 type LcdDecoder struct {
-	digits    []*Digit
+	Digits    []*Digit
 	templates map[string]*Template
-	threshold int
+	Threshold int
 }
 
 // There are 128 possible values in a 7 segment display,
@@ -208,7 +208,7 @@ func (l *LcdDecoder) AddDigit(name string, x, y, min, max int) (int, error) {
 	if !ok {
 		return 0, fmt.Errorf("Unknown template %s", name)
 	}
-	index := len(l.digits)
+	index := len(l.Digits)
 	d := &Digit{}
 	d.index = index
 	d.bb = offsetBB(t.bb, x, y)
@@ -232,12 +232,12 @@ func (l *LcdDecoder) AddDigit(name string, x, y, min, max int) (int, error) {
 	d.bmr.y = t.bmr.y + y
 	d.bml.x = t.bml.x + x
 	d.bml.y = t.bml.y + y
-	l.digits = append(l.digits, d)
+	l.Digits = append(l.Digits, d)
 	return index, nil
 }
 
 func (l *LcdDecoder) SetThreshold(threshold int) {
-	l.threshold = threshold
+	l.Threshold = threshold
 }
 
 // Decode the LCD digits in the image.
@@ -245,12 +245,12 @@ func (l *LcdDecoder) Decode(img image.Image) ([]string, []bool, []int) {
 	strs := []string{}
 	valid := []bool{}
 	bits := []int{}
-	for _, d := range l.digits {
-		segments := d.scan(img, l.threshold)
+	for _, d := range l.Digits {
+		segments := d.scan(img, l.Threshold)
 		chr, ok := resultTable[segments]
 		result := string([]byte{chr})
 		// Check for decimal place.
-		if d.decimal(img, l.threshold) {
+		if d.decimal(img, l.Threshold) {
 			result = result + "."
 		}
 		strs = append(strs, result)
@@ -266,16 +266,16 @@ func (l *LcdDecoder) DecodeError() {
 
 // Calibrate calculates the on and off values from the image provided.
 func (l *LcdDecoder) Calibrate(img image.Image, digits string) error {
-	if len(digits) != len(l.digits) {
-		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(digits), len(l.digits))
+	if len(digits) != len(l.Digits) {
+		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(digits), len(l.Digits))
 	}
-	for i := range l.digits {
+	for i := range l.Digits {
 		char := byte(digits[i])
 		mask, ok := reverseTable[char]
 		if !ok || mask == 0 {
 			return fmt.Errorf("Unknown or blank digit: %c", char)
 		}
-		l.digits[i].calibrateDigit(img, mask)
+		l.Digits[i].calibrateDigit(img, mask)
 	}
 	return nil
 }
@@ -285,7 +285,7 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA, fill bool) {
 	red := color.RGBA{255, 0, 0, 50}
 	green := color.RGBA{0, 255, 0, 50}
 	white := color.RGBA{255, 255, 255, 255}
-	for _, d := range l.digits {
+	for _, d := range l.Digits {
 		drawBB(img, d.bb, white)
 		ext := sample{d.tmr, d.tml, d.bmr, d.bml}
 		drawCross(img, ext, white)
@@ -324,7 +324,7 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			log.Printf("RestoreCalibration: line %d, too few fields (%d)", line, len(v))
 			continue
 		}
-		if v[0] < 0 || v[0] >= len(l.digits) {
+		if v[0] < 0 || v[0] >= len(l.Digits) {
 			log.Printf("RestoreCalibration: line %d, out of range digit (%d)", line, v[0])
 			continue
 		}
@@ -332,7 +332,7 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			log.Printf("RestoreCalibration: line %d, out of range segment (%d)", line, v[1])
 			continue
 		}
-		d := l.digits[v[0]]
+		d := l.Digits[v[0]]
 		if v[1] == -1 {
 			if len(v) < 4 {
 				log.Printf("RestoreCalibration: line %d, too few fields (%d)", line, len(v))
@@ -350,7 +350,7 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 
 // Save the calibration data.
 func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
-	for i, d := range l.digits {
+	for i, d := range l.Digits {
 		fmt.Fprintf(w, "%d,-1,%d,%d", i, d.min, d.avgMax)
 		for _, h := range d.minHistory {
 			fmt.Fprintf(w, ",%d", h)
@@ -370,8 +370,10 @@ func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
 func (d *Digit) scan(img image.Image, threshold int) int {
 	lookup := 0
 	//fmt.Printf("Digit %d Max = %d, Min = %d, On = %d, off = %d\n", i, d.calib.max, d.calib.min, threshold, off)
+	off := rawSample(img, d.off)
 	for i := range d.seg {
-		s := scaledSample(img, d.seg[i].points, d.min, d.seg[i].max)
+		// s := scaledSample(img, d.seg[i].points, d.min, d.seg[i].max)
+		s := scaledSample(img, d.seg[i].points, off, d.seg[i].max)
 		if s >= threshold {
 			lookup |= 1 << uint(i)
 		}
@@ -410,6 +412,32 @@ func (d *Digit) calibrateDigit(img image.Image, mask int) {
 	}
 }
 
+func (d* Digit) Min() int {
+	return d.min
+}
+
+func (d* Digit) Max() []int {
+	m := make([]int, SEGMENTS, SEGMENTS)
+	for i, _ := range d.seg {
+		m[i] = d.seg[i].max
+	}
+	return m
+}
+
+// Get the raw samples.
+func (d *Digit) Samples(img image.Image) []int {
+	s := make([]int, SEGMENTS, SEGMENTS)
+	for i, _ := range d.seg {
+		s[i] = rawSample(img, d.seg[i].points)
+	}
+	return s
+}
+
+// Get the sampled off value.
+func (d *Digit) Off(img image.Image) int {
+	return rawSample(img, d.off)
+}
+
 // Add a new value and return the average.
 func mavg(l *[]int, v int) int {
 	for len(*l) <= (historySize + 1) {
@@ -429,6 +457,10 @@ func mavg(l *[]int, v int) int {
 // between 0 and 100, where 0 is lightest and 100 is darkest using
 // the scale provided.
 func scaledSample(img image.Image, slist sample, min, max int) int {
+	if min >= max {
+		log.Printf("min (%d) >= max (%d)!", min, max)
+		return 0
+	}
 	gscaled := rawSample(img, slist)
 	if gscaled < min {
 		gscaled = min
