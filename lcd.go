@@ -416,11 +416,13 @@ func mavg(l *[]int, v int) int {
 		*l = append(*l, v)
 	}
 	*l = (*l)[1:historySize + 1]
-	var t int
-	for _, d := range *l {
-		t += d
+	var t, c int
+	// Calculate the weighted average.
+	for i, d := range *l {
+		c += i + 1
+		t += d * (i + 1)
 	}
-	return t / len(*l)
+	return t / c
 }
 
 // Return an average of the sampled points as a int
