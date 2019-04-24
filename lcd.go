@@ -358,10 +358,8 @@ func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
 // Scan one digit and return the decoded character.
 func (d *Digit) scan(img image.Image, threshold int) int {
 	lookup := 0
-	//fmt.Printf("Digit %d Max = %d, Min = %d, On = %d, off = %d\n", i, d.calib.max, d.calib.min, threshold, off)
 	// off := rawSample(img, d.off)
 	for i := range d.seg {
-		fmt.Printf("scan seg %d: samp %d\n", i, rawSample(img, d.seg[i].points))
 		s := scaledSample(img, d.seg[i].points, d.seg[i].min, d.seg[i].max)
 		// s := scaledSample(img, d.seg[i].points, off, d.seg[i].max)
 		if s >= threshold {
@@ -382,7 +380,6 @@ func (d *Digit) calibrateDigit(img image.Image, mask int) {
 	var tmax, tcount int
 	for i := range d.seg {
 		samp := rawSample(img, d.seg[i].points)
-		fmt.Printf("seg %d: samp %d\n", i, samp)
 		if ((1 << uint(i)) & mask) != 0 {
 			d.seg[i].max = mavg(&d.seg[i].maxHistory, samp)
 			d.seg[i].min = mavg(&d.seg[i].minHistory, off)
