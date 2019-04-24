@@ -97,7 +97,7 @@ func NewReader(c *config.Section, trace bool) (*Reader, error) {
 	r := &Reader{trace: trace, decoder: d, limits: map[string]limit{}, calFile: cf}
 	r.Restore()
 	s, err := c.GetArg("calibrate")
-	if err != nil {
+	if err == nil {
 		img, err := ReadImage(s)
 		if err != nil {
 			return nil, err
