@@ -57,7 +57,7 @@ type segment struct {
 }
 
 // Base template for one type of digit.
-// Points are all relative to TL position.
+// Points are all relative to top left corner position.
 type Template struct {
 	name string
 	line int
@@ -132,7 +132,8 @@ var resultTable = map[int]byte{
 }
 
 // reverseTable maps a character to the segments that are on.
-// Used for calibrating on/off segment values.
+// This is used in calibration to map
+// a character to the segments representing that character.
 var reverseTable map[byte]int = make(map[byte]int)
 
 // Initialise reverse table lookup.
@@ -153,7 +154,7 @@ func NewLcdDecoder() *LcdDecoder {
 	return &LcdDecoder{[]*Digit{}, map[string]*Template{}, defaultThreshold}
 }
 
-// Add a template.
+// Add a digit template. Each template describes the parameters of a type of digit.
 func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) error {
 	if _, ok := l.templates[name]; ok {
 		return fmt.Errorf("Duplicate template entry: %s", name)
@@ -203,7 +204,8 @@ func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) err
 	return nil
 }
 
-// Add a digit using the named template.
+// Add a digit using the named template. The template points are offset
+// by the point location of the digit.
 func (l *LcdDecoder) AddDigit(name string, x, y int) (*Digit, error) {
 	t, ok := l.templates[name]
 	if !ok {
@@ -355,7 +357,7 @@ func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
 	}
 }
 
-// Scan one digit and return the decoded character.
+// Scan one digit and return the segment mask.
 func (d *Digit) scan(img image.Image, threshold int) int {
 	lookup := 0
 	// off := rawSample(img, d.off)
@@ -407,6 +409,7 @@ func (d *Digit) calibrateDigit(img image.Image, mask int) {
 	d.max = max / len(d.seg)
 }
 
+// Set the default min and max.
 func (d *Digit) SetMinMax(min, max int) {
 	d.min = min
 	d.max = max
@@ -418,7 +421,7 @@ func (d *Digit) SetMinMax(min, max int) {
 
 func (d *Digit) Min() []int {
 	m := make([]int, SEGMENTS, SEGMENTS)
-	for i, _ := range d.seg {
+	for i := range d.seg {
 		m[i] = d.seg[i].min
 	}
 	return m
@@ -426,16 +429,16 @@ func (d *Digit) Min() []int {
 
 func (d *Digit) Max() []int {
 	m := make([]int, SEGMENTS, SEGMENTS)
-	for i, _ := range d.seg {
+	for i := range d.seg {
 		m[i] = d.seg[i].max
 	}
 	return m
 }
 
-// Get the raw samples.
+// Get the point samples for all the segments.
 func (d *Digit) Samples(img image.Image) []int {
 	s := make([]int, SEGMENTS, SEGMENTS)
-	for i, _ := range d.seg {
+	for i := range d.seg {
 		s[i] = rawSample(img, d.seg[i].points)
 	}
 	return s
@@ -446,39 +449,39 @@ func (d *Digit) Off(img image.Image) int {
 	return rawSample(img, d.off)
 }
 
-// Add a new value and return the average.
+// Add a new value to the history slice and return the average.
 func mavg(l *[]int, v int) int {
 	*l = append(*l, v)
 	if len(*l) > historySize {
 		*l = (*l)[1:]
 	}
 	var t int
-	// Calculate the average.
 	for _, d := range *l {
 		t += d
 	}
 	return t / len(*l)
 }
 
-// Return an average of the sampled points as a int
-// between 0 and 100, where 0 is lightest and 100 is darkest using
-// the scale provided.
+// Using the sampled average, scale the result between 0 and 100,
+// (where 0 is lightest and 100 is darkest) using the min and max as limits.
 func scaledSample(img image.Image, slist sample, min, max int) int {
 	if min >= max {
 		log.Printf("min (%d) >= max (%d)!", min, max)
 		return 0
 	}
-	gscaled := rawSample(img, slist)
-	if gscaled < min {
-		gscaled = min
+	sample := rawSample(img, slist)
+	// Lock the sample within the min/max range.
+	if sample < min {
+		sample = min
 	}
-	if gscaled >= max {
-		gscaled = max - 1
+	if sample >= max {
+		sample = max - 1
 	}
-	return (gscaled - min) * 100 / (max - min)
+	return (sample - min) * 100 / (max - min)
 }
 
-// Take a raw sample.
+// Sample the points. Each point is converted to grayscale and averaged
+// across all the points. The result is inverted so that darker values are higher.
 func rawSample(img image.Image, slist sample) int {
 	var gacc int
 	for _, s := range slist {
