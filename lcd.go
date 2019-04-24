@@ -45,6 +45,17 @@ const (
 	SEGMENTS   = iota
 )
 
+type Char struct {
+	Chr  string
+	DP   bool
+	Bits int
+}
+type Scan struct {
+	img image.Image
+	Text string
+	Chars []Char
+}
+
 type sample []point
 
 type segment struct {
