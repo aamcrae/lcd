@@ -21,7 +21,6 @@ import (
 	"image/jpeg"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/aamcrae/MeterMan/lcd"
 	"github.com/aamcrae/config"
@@ -59,14 +58,13 @@ func runTest(t *testing.T, name, result, cal string) {
 	if err != nil {
 		t.Errorf("Calibration Error for %s: %v", imagename, err)
 	}
-	str, found, bits := lcd.Decode(img)
-	got := strings.Join(str, "")
-	if got != result {
-		for i, f := range found {
-			if !f {
-				fmt.Printf("Element %d not found, bits = 0x%02x\n", i, bits[i])
+	res := lcd.Decode(img)
+	if res.Text != result {
+		for i := range res.Digits {
+			if !res.Digits[i].Valid {
+				fmt.Printf("Element %d not found, bits = 0x%02x\n", i, res.Digits[i].Bits)
 			}
 		}
-		t.Fatalf("For test %s, expected %s, found %s", name, result, got)
+		t.Fatalf("For test %s, expected %s, found %s", name, result, res.Text)
 	}
 }

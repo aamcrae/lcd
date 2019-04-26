@@ -16,6 +16,7 @@ package lcd
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
@@ -25,13 +26,12 @@ import (
 	"strings"
 )
 
+var history = flag.Int("history", 5, "Size of history cache")
+
 // Default threshold
 const defaultThreshold = 50
 const offMargin = 5
 const onMargin = 2
-const historySize = 10
-
-var trace = false
 
 // Segments.
 const (
@@ -46,25 +46,32 @@ const (
 )
 
 type Char struct {
-	Chr  string
-	DP   bool
-	Bits int
+	Char  byte
+	Str   string
+	Valid bool
+	DP    bool
+	Bits  int
 }
-type Scan struct {
-	img image.Image
-	Text string
-	Chars []Char
+
+type ScanResult struct {
+	img     image.Image
+	Text    string
+	Invalid int
+	Digits  []Char
+}
+
+type mavg struct {
+	value   int
+	history []int
 }
 
 type sample []point
 
 type segment struct {
-	bb         bbox
-	points     sample
-	max        int
-	minHistory []int
-	min		   int
-	maxHistory []int
+	bb     bbox
+	points sample
+	max    *mavg
+	min    *mavg
 }
 
 // Base template for one type of digit.
@@ -87,18 +94,18 @@ type Template struct {
 
 // All points are absolute.
 type Digit struct {
-	index      int
-	pos        point
-	bb         bbox
-	dp         sample
-	tmr        point
-	tml        point
-	bmr        point
-	bml        point
-	off        sample
-	min		   int
-	max		   int
-	seg        [SEGMENTS]segment
+	index int
+	pos   point
+	bb    bbox
+	dp    sample
+	tmr   point
+	tml   point
+	bmr   point
+	bml   point
+	off   sample
+	min   int
+	max   int
+	seg   [SEGMENTS]segment
 }
 
 type LcdDecoder struct {
@@ -121,7 +128,7 @@ var resultTable = map[int]byte{
 	M_TL | ____ | M_TR | M_BR | ____ | ____ | M_MM: '4',
 	M_TL | M_TM | ____ | M_BR | M_BM | ____ | M_MM: '5',
 	M_TL | M_TM | ____ | M_BR | M_BM | M_BL | M_MM: '6',
-	M_TL | M_TM | M_TR | M_BR | ____ | ____ | ____: '7',
+	//  M_TL | M_TM | M_TR | M_BR | ____ | ____ | ____: '7',
 	____ | M_TM | M_TR | M_BR | ____ | ____ | ____: '7',
 	M_TL | M_TM | M_TR | M_BR | M_BM | M_BL | M_MM: '8',
 	M_TL | M_TM | M_TR | M_BR | M_BM | ____ | M_MM: '9',
@@ -233,6 +240,8 @@ func (l *LcdDecoder) AddDigit(name string, x, y int) (*Digit, error) {
 	for i := 0; i < SEGMENTS; i++ {
 		d.seg[i].bb = offsetBB(t.seg[i].bb, x, y)
 		d.seg[i].points = offset(t.seg[i].points, x, y)
+		d.seg[i].min = new(mavg)
+		d.seg[i].max = new(mavg)
 	}
 	d.dp = offset(t.dp, x, y)
 	d.tmr.x = t.tmr.x + x
@@ -252,27 +261,29 @@ func (l *LcdDecoder) SetThreshold(threshold int) {
 }
 
 // Decode the LCD digits in the image.
-func (l *LcdDecoder) Decode(img image.Image) ([]string, []bool, []int) {
-	strs := []string{}
-	valid := []bool{}
-	bits := []int{}
+func (l *LcdDecoder) Decode(img image.Image) *ScanResult {
+	var res ScanResult
+	res.img = img
+	var str []byte
 	for _, d := range l.Digits {
-		segments := d.scan(img, l.Threshold)
-		chr, ok := resultTable[segments]
-		result := string([]byte{chr})
+		var c Char
+		c.Bits = d.scan(img, l.Threshold)
+		c.Char, c.Valid = resultTable[c.Bits]
+		if c.Valid {
+			c.Str = string([]byte{c.Char})
+		} else {
+			res.Invalid++
+		}
+		str = append(str, c.Char)
 		// Check for decimal place.
 		if d.decimal(img, l.Threshold) {
-			result = result + "."
+			c.DP = true
+			str = append(str, '.')
 		}
-		strs = append(strs, result)
-		valid = append(valid, ok)
-		bits = append(bits, segments)
+		res.Digits = append(res.Digits, c)
 	}
-	return strs, valid, bits
-}
-
-// Register a failed decode.
-func (l *LcdDecoder) DecodeError() {
+	res.Text = string(str)
+	return &res
 }
 
 // Calibrate calculates the on and off values from the image provided.
@@ -283,8 +294,8 @@ func (l *LcdDecoder) Calibrate(img image.Image, digits string) error {
 	for i := range l.Digits {
 		char := byte(digits[i])
 		mask, ok := reverseTable[char]
-		if !ok || mask == 0 {
-			return fmt.Errorf("Unknown or blank digit: %c", char)
+		if !ok {
+			return fmt.Errorf("Unknown digit: 0x%02x", char)
 		}
 		l.Digits[i].calibrateDigit(img, mask)
 	}
@@ -344,14 +355,14 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			continue
 		}
 		s := &l.Digits[v[0]].seg[v[1]]
-		s.min = mavg(&s.minHistory, v[2])
-		s.max = mavg(&s.maxHistory, v[3])
+		s.min.init(v[2])
+		s.max.init(v[3])
 	}
 	for _, d := range l.Digits {
 		var min, max int
 		for i := range d.seg {
-			min += d.seg[i].min
-			max += d.seg[i].max
+			min += d.seg[i].min.value
+			max += d.seg[i].max.value
 		}
 		// Keep the average of the min and max.
 		d.min = min / len(d.seg)
@@ -363,7 +374,7 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
 	for i, d := range l.Digits {
 		for s := range d.seg {
-			fmt.Fprintf(w, "%d,%d,%d,%d\n", i, s, d.seg[s].min, d.seg[s].max)
+			fmt.Fprintf(w, "%d,%d,%d,%d\n", i, s, d.seg[s].min.value, d.seg[s].max.value)
 		}
 	}
 }
@@ -373,7 +384,7 @@ func (d *Digit) scan(img image.Image, threshold int) int {
 	lookup := 0
 	// off := rawSample(img, d.off)
 	for i := range d.seg {
-		s := scaledSample(img, d.seg[i].points, d.seg[i].min, d.seg[i].max)
+		s := scaledSample(img, d.seg[i].points, d.seg[i].min.value, d.seg[i].max.value)
 		// s := scaledSample(img, d.seg[i].points, off, d.seg[i].max)
 		if s >= threshold {
 			lookup |= 1 << uint(i)
@@ -394,46 +405,44 @@ func (d *Digit) calibrateDigit(img image.Image, mask int) {
 	for i := range d.seg {
 		samp := rawSample(img, d.seg[i].points)
 		if ((1 << uint(i)) & mask) != 0 {
-			d.seg[i].max = mavg(&d.seg[i].maxHistory, samp)
-			d.seg[i].min = mavg(&d.seg[i].minHistory, off)
-			tmax += d.seg[i].max
+			d.seg[i].max.add(samp)
+			tmax += d.seg[i].max.value
 			tcount++
+			d.seg[i].min.set(off)
 		} else {
-			d.seg[i].min = mavg(&d.seg[i].minHistory, samp)
+			d.seg[i].min.add(samp)
 		}
 	}
 	// For segments that are not on, set the max to an average of the segments
 	// that are on.
 	if tcount > 0 {
 		for i := range d.seg {
-			if len(d.seg[i].maxHistory) == 0 {
-				d.seg[i].max = mavg(&d.seg[i].maxHistory, tmax/tcount)
-			}
+			d.seg[i].max.set(tmax / tcount)
 		}
 	}
 	var max, min int
 	for i := range d.seg {
-		min += d.seg[i].min
-		max += d.seg[i].max
+		min += d.seg[i].min.value
+		max += d.seg[i].max.value
 	}
 	d.min = min / len(d.seg)
 	d.max = max / len(d.seg)
 }
 
-// Set the default min and max.
+// Set the min and max for the segments
 func (d *Digit) SetMinMax(min, max int) {
 	d.min = min
 	d.max = max
 	for i := range d.seg {
-		d.seg[i].min = mavg(&d.seg[i].minHistory, min)
-		d.seg[i].max = mavg(&d.seg[i].maxHistory, max)
+		d.seg[i].min.init(min)
+		d.seg[i].max.init(max)
 	}
 }
 
 func (d *Digit) Min() []int {
 	m := make([]int, SEGMENTS, SEGMENTS)
 	for i := range d.seg {
-		m[i] = d.seg[i].min
+		m[i] = d.seg[i].min.value
 	}
 	return m
 }
@@ -441,7 +450,7 @@ func (d *Digit) Min() []int {
 func (d *Digit) Max() []int {
 	m := make([]int, SEGMENTS, SEGMENTS)
 	for i := range d.seg {
-		m[i] = d.seg[i].max
+		m[i] = d.seg[i].max.value
 	}
 	return m
 }
@@ -460,17 +469,43 @@ func (d *Digit) Off(img image.Image) int {
 	return rawSample(img, d.off)
 }
 
+func DigitsToSegments(s string) ([]int, error) {
+	var b []int
+	for i, c := range s {
+		mask, ok := reverseTable[byte(c)]
+		if !ok {
+			return nil, fmt.Errorf("Unknown character (#%d - %c)", i, c)
+		}
+		b = append(b, mask)
+	}
+	return b, nil
+}
+
+// Init the moving average.
+func (m *mavg) init(v int) {
+	for i := 0; i < *history; i++ {
+		m.add(v)
+	}
+}
+
+// If not already set, init the moving average.
+func (m *mavg) set(v int) {
+	if len(m.history) == 0 {
+		m.init(v)
+	}
+}
+
 // Add a new value to the history slice and return the average.
-func mavg(l *[]int, v int) int {
-	*l = append(*l, v)
-	if len(*l) > historySize {
-		*l = (*l)[1:]
+func (m *mavg) add(v int) {
+	m.history = append(m.history, v)
+	if len(m.history) > *history {
+		m.history = m.history[1:]
 	}
-	var t int
-	for _, d := range *l {
-		t += d
+	m.value = 0
+	for _, d := range m.history {
+		m.value += d
 	}
-	return t / len(*l)
+	m.value /= len(m.history)
 }
 
 // Using the sampled average, scale the result between 0 and 100,

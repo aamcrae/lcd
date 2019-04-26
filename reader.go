@@ -27,9 +27,9 @@ import (
 	"github.com/aamcrae/config"
 )
 
-var recalibrate = flag.Bool("recalibrate", true, "Recalibrate with new image")
+var recalibrate = flag.Bool("recalibrate", false, "Recalibrate with new image")
 
-const calibrateDelay = time.Minute * 5
+const calibrateCache = time.Minute * 1
 
 type limit struct {
 	last  time.Time
@@ -102,7 +102,7 @@ func NewReader(c *config.Section, trace bool) (*Reader, error) {
 		if err != nil {
 			return nil, err
 		}
-		r.Calibrate(img)
+		r.Calibrate(img, "888888888888")
 	}
 	return r, nil
 }
@@ -122,6 +122,9 @@ func (r *Reader) Restore() {
 // Save the current calibration.
 func (r *Reader) Save() {
 	if len(r.calFile) != 0 {
+		if r.trace {
+			log.Printf("Saving calibration data")
+		}
 		if f, err := os.Create(r.calFile); err != nil {
 			log.Printf("Calibration file %s: %v\n", r.calFile, err)
 		} else {
@@ -134,39 +137,45 @@ func (r *Reader) Save() {
 	}
 }
 
-func (r *Reader) Calibrate(img image.Image) {
+func (r *Reader) GoodScan(res *ScanResult) {
+	if *recalibrate {
+		r.Calibrate(res.img, res.Text)
+	}
+}
+
+func (r *Reader) Calibrate(img image.Image, digits string) {
+	r.decoder.Calibrate(img, digits)
+	// Save the calibration data.
 	now := time.Now()
-	if time.Now().Sub(r.lastCalibration) >= calibrateDelay {
+	if time.Now().Sub(r.lastCalibration) >= calibrateCache {
 		r.lastCalibration = now
-		log.Printf("Recalibrating")
-		r.decoder.Calibrate(img, "888888888888")
-		// Save the calibration data.
 		r.Save()
 	}
 }
 
 func (r *Reader) Read(img image.Image) (string, float64, error) {
 	r.current = img
-	vals, vok, bits := r.decoder.Decode(img)
-	var badSeg []string
-	for s, okDigit := range vok {
-		if !okDigit {
-			badSeg = append(badSeg, fmt.Sprintf("%d[%02x]", s, bits[s]))
+	res := r.decoder.Decode(img)
+	if res.Invalid > 0 {
+		var badSeg []string
+		for s := range res.Digits {
+			if !res.Digits[s].Valid {
+				badSeg = append(badSeg, fmt.Sprintf("%d[%02x]", s, res.Digits[s].Bits))
+			}
 		}
-	}
-	if len(badSeg) != 0 {
-		r.decoder.DecodeError()
 		return "", 0.0, fmt.Errorf("Bad read on segment[s] %s", strings.Join(badSeg, ","))
 	}
-	key := strings.Join(vals[0:4], "")
-	value := strings.Join(vals[4:], "")
+	key := res.Text[0:4]
+	value := res.Text[4:]
 	m, ok := measures[key]
 	if !ok {
-		r.decoder.DecodeError()
 		return "", 0.0, fmt.Errorf("Unknown key (%s) value %s", key, value)
 	}
-	handler := m.handler
-	return handler(r, m, key, value)
+	str, num, err := m.handler(r, m, key, value)
+	if err == nil {
+		r.GoodScan(res)
+	}
+	return str, num, err
 }
 
 func handlerIgnore(r *Reader, m *measure, key, value string) (string, float64, error) {
@@ -212,10 +221,8 @@ func handlerAccum(r *Reader, m *measure, key, value string) (string, float64, er
 }
 
 func handlerCalibrate(r *Reader, m *measure, key, value string) (string, float64, error) {
-	if value == "88888888" {
-		if *recalibrate {
-			r.Calibrate(r.current)
-		}
+	if value != "88888888" {
+		return "", 0.0, fmt.Errorf("Wrong calibration value (%s)", value)
 	}
 	return "", 0.0, nil
 }
@@ -229,7 +236,6 @@ func (r *Reader) getNumber(m *measure, value string) (float64, error) {
 	}
 	v, err := strconv.ParseFloat(strings.Trim(sv, " "), 64)
 	if err != nil {
-		r.decoder.DecodeError()
 		return 0, fmt.Errorf("%s: bad number (%v)\n", value, err)
 	}
 	return v / scale, nil
