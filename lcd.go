@@ -60,18 +60,13 @@ type ScanResult struct {
 	Digits  []Char
 }
 
-type mavg struct {
-	value   int
-	history []int
-}
-
 type sample []point
 
 type segment struct {
 	bb     bbox
 	points sample
-	max    *mavg
-	min    *mavg
+	max    *Avg
+	min    *Avg
 }
 
 // Base template for one type of digit.
@@ -240,8 +235,8 @@ func (l *LcdDecoder) AddDigit(name string, x, y int) (*Digit, error) {
 	for i := 0; i < SEGMENTS; i++ {
 		d.seg[i].bb = offsetBB(t.seg[i].bb, x, y)
 		d.seg[i].points = offset(t.seg[i].points, x, y)
-		d.seg[i].min = new(mavg)
-		d.seg[i].max = new(mavg)
+		d.seg[i].min = NewAvg(*history)
+		d.seg[i].max = NewAvg(*history)
 	}
 	d.dp = offset(t.dp, x, y)
 	d.tmr.x = t.tmr.x + x
@@ -355,14 +350,14 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			continue
 		}
 		s := &l.Digits[v[0]].seg[v[1]]
-		s.min.init(v[2])
-		s.max.init(v[3])
+		s.min.Init(v[2])
+		s.max.Init(v[3])
 	}
 	for _, d := range l.Digits {
 		var min, max int
 		for i := range d.seg {
-			min += d.seg[i].min.value
-			max += d.seg[i].max.value
+			min += d.seg[i].min.Value
+			max += d.seg[i].max.Value
 		}
 		// Keep the average of the min and max.
 		d.min = min / len(d.seg)
@@ -374,7 +369,7 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
 	for i, d := range l.Digits {
 		for s := range d.seg {
-			fmt.Fprintf(w, "%d,%d,%d,%d\n", i, s, d.seg[s].min.value, d.seg[s].max.value)
+			fmt.Fprintf(w, "%d,%d,%d,%d\n", i, s, d.seg[s].min.Value, d.seg[s].max.Value)
 		}
 	}
 }
@@ -384,7 +379,7 @@ func (d *Digit) scan(img image.Image, threshold int) int {
 	lookup := 0
 	// off := rawSample(img, d.off)
 	for i := range d.seg {
-		s := scaledSample(img, d.seg[i].points, d.seg[i].min.value, d.seg[i].max.value)
+		s := scaledSample(img, d.seg[i].points, d.seg[i].min.Value, d.seg[i].max.Value)
 		// s := scaledSample(img, d.seg[i].points, off, d.seg[i].max)
 		if s >= threshold {
 			lookup |= 1 << uint(i)
@@ -405,25 +400,25 @@ func (d *Digit) calibrateDigit(img image.Image, mask int) {
 	for i := range d.seg {
 		samp := rawSample(img, d.seg[i].points)
 		if ((1 << uint(i)) & mask) != 0 {
-			d.seg[i].max.add(samp)
-			tmax += d.seg[i].max.value
+			d.seg[i].max.Add(samp)
+			tmax += d.seg[i].max.Value
 			tcount++
-			d.seg[i].min.set(off)
+			d.seg[i].min.Set(off)
 		} else {
-			d.seg[i].min.add(samp)
+			d.seg[i].min.Add(samp)
 		}
 	}
 	// For segments that are not on, set the max to an average of the segments
 	// that are on.
 	if tcount > 0 {
 		for i := range d.seg {
-			d.seg[i].max.set(tmax / tcount)
+			d.seg[i].max.Set(tmax / tcount)
 		}
 	}
 	var max, min int
 	for i := range d.seg {
-		min += d.seg[i].min.value
-		max += d.seg[i].max.value
+		min += d.seg[i].min.Value
+		max += d.seg[i].max.Value
 	}
 	d.min = min / len(d.seg)
 	d.max = max / len(d.seg)
@@ -434,15 +429,15 @@ func (d *Digit) SetMinMax(min, max int) {
 	d.min = min
 	d.max = max
 	for i := range d.seg {
-		d.seg[i].min.init(min)
-		d.seg[i].max.init(max)
+		d.seg[i].min.Init(min)
+		d.seg[i].max.Init(max)
 	}
 }
 
 func (d *Digit) Min() []int {
 	m := make([]int, SEGMENTS, SEGMENTS)
 	for i := range d.seg {
-		m[i] = d.seg[i].min.value
+		m[i] = d.seg[i].min.Value
 	}
 	return m
 }
@@ -450,7 +445,7 @@ func (d *Digit) Min() []int {
 func (d *Digit) Max() []int {
 	m := make([]int, SEGMENTS, SEGMENTS)
 	for i := range d.seg {
-		m[i] = d.seg[i].max.value
+		m[i] = d.seg[i].max.Value
 	}
 	return m
 }
@@ -479,33 +474,6 @@ func DigitsToSegments(s string) ([]int, error) {
 		b = append(b, mask)
 	}
 	return b, nil
-}
-
-// Init the moving average.
-func (m *mavg) init(v int) {
-	for i := 0; i < *history; i++ {
-		m.add(v)
-	}
-}
-
-// If not already set, init the moving average.
-func (m *mavg) set(v int) {
-	if len(m.history) == 0 {
-		m.init(v)
-	}
-}
-
-// Add a new value to the history slice and return the average.
-func (m *mavg) add(v int) {
-	m.history = append(m.history, v)
-	if len(m.history) > *history {
-		m.history = m.history[1:]
-	}
-	m.value = 0
-	for _, d := range m.history {
-		m.value += d
-	}
-	m.value /= len(m.history)
 }
 
 // Using the sampled average, scale the result between 0 and 100,
