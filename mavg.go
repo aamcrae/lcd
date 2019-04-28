@@ -14,16 +14,15 @@
 
 package lcd
 
-
 type Avg struct {
-	size	int
+	size    int
 	Value   int
-	total	int
+	total   int
 	history []int
 }
 
 // Create a new moving average.
-func NewAvg(size int) * Avg {
+func NewAvg(size int) *Avg {
 	return &Avg{size: size}
 }
 
