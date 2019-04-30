@@ -45,28 +45,30 @@ const (
 	SEGMENTS   = iota
 )
 
-type Char struct {
-	Char  byte
-	Str   string
-	Valid bool
-	DP    bool
-	Bits  int
+type DigitScan struct {
+	Char     byte
+	Str      string
+	Valid    bool
+	DP       bool
+	Mask     int
+	Segments []int
 }
 
 type ScanResult struct {
 	img     image.Image
 	Text    string
 	Invalid int
-	Digits  []Char
+	Digits  []DigitScan
 }
 
 type sample []point
 
 type segment struct {
-	bb     bbox
-	points sample
-	max    *Avg
-	min    *Avg
+	bb        bbox
+	points    sample
+	max       *Avg
+	min       *Avg
+	threshold int
 }
 
 // Base template for one type of digit.
@@ -89,18 +91,19 @@ type Template struct {
 
 // All points are absolute.
 type Digit struct {
-	index int
-	pos   point
-	bb    bbox
-	dp    sample
-	tmr   point
-	tml   point
-	bmr   point
-	bml   point
-	off   sample
-	min   int
-	max   int
-	seg   [SEGMENTS]segment
+	index     int
+	pos       point
+	bb        bbox
+	dp        sample
+	tmr       point
+	tml       point
+	bmr       point
+	bml       point
+	off       sample
+	min       int
+	max       int
+	threshold int
+	seg       [SEGMENTS]segment
 }
 
 type LcdDecoder struct {
@@ -123,7 +126,7 @@ var resultTable = map[int]byte{
 	M_TL | ____ | M_TR | M_BR | ____ | ____ | M_MM: '4',
 	M_TL | M_TM | ____ | M_BR | M_BM | ____ | M_MM: '5',
 	M_TL | M_TM | ____ | M_BR | M_BM | M_BL | M_MM: '6',
-	//  M_TL | M_TM | M_TR | M_BR | ____ | ____ | ____: '7',
+	M_TL | M_TM | M_TR | M_BR | ____ | ____ | ____: '7',
 	____ | M_TM | M_TR | M_BR | ____ | ____ | ____: '7',
 	M_TL | M_TM | M_TR | M_BR | M_BM | M_BL | M_MM: '8',
 	M_TL | M_TM | M_TR | M_BR | M_BM | ____ | M_MM: '9',
@@ -237,6 +240,7 @@ func (l *LcdDecoder) AddDigit(name string, x, y int) (*Digit, error) {
 		d.seg[i].points = offset(t.seg[i].points, x, y)
 		d.seg[i].min = NewAvg(*history)
 		d.seg[i].max = NewAvg(*history)
+		d.seg[i].threshold = threshold(d.seg[i].min.Value, d.seg[i].max.Value, l.Threshold)
 	}
 	d.dp = offset(t.dp, x, y)
 	d.tmr.x = t.tmr.x + x
@@ -251,8 +255,8 @@ func (l *LcdDecoder) AddDigit(name string, x, y int) (*Digit, error) {
 	return d, nil
 }
 
-func (l *LcdDecoder) SetThreshold(threshold int) {
-	l.Threshold = threshold
+func (l *LcdDecoder) SetThreshold(th int) {
+	l.Threshold = th
 }
 
 // Decode the LCD digits in the image.
@@ -261,38 +265,58 @@ func (l *LcdDecoder) Decode(img image.Image) *ScanResult {
 	res.img = img
 	var str []byte
 	for _, d := range l.Digits {
-		var c Char
-		c.Bits = d.scan(img, l.Threshold)
-		c.Char, c.Valid = resultTable[c.Bits]
-		if c.Valid {
-			c.Str = string([]byte{c.Char})
+		var ds DigitScan
+		ds.Segments = make([]int, SEGMENTS, SEGMENTS)
+		for i := range ds.Segments {
+			ds.Segments[i] = sampleRegion(img, d.seg[i].points)
+			if ds.Segments[i] >= d.seg[i].threshold {
+				ds.Mask |= 1 << uint(i)
+			}
+		}
+		ds.Char, ds.Valid = resultTable[ds.Mask]
+		if ds.Valid {
+			ds.Str = string([]byte{ds.Char})
 		} else {
 			res.Invalid++
 		}
-		str = append(str, c.Char)
+		str = append(str, ds.Char)
 		// Check for decimal place.
-		if d.decimal(img, l.Threshold) {
-			c.DP = true
+		if d.decimal(img) {
+			ds.DP = true
 			str = append(str, '.')
 		}
-		res.Digits = append(res.Digits, c)
+		res.Digits = append(res.Digits, ds)
 	}
 	res.Text = string(str)
 	return &res
 }
 
 // Calibrate calculates the on and off values from the image provided.
-func (l *LcdDecoder) Calibrate(img image.Image, digits string) error {
+func (l *LcdDecoder) CalibrateImage(img image.Image, digits string) error {
 	if len(digits) != len(l.Digits) {
 		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(digits), len(l.Digits))
 	}
+	res := l.Decode(img)
 	for i := range l.Digits {
 		char := byte(digits[i])
 		mask, ok := reverseTable[char]
 		if !ok {
 			return fmt.Errorf("Unknown digit: 0x%02x", char)
 		}
-		l.Digits[i].calibrateDigit(img, mask)
+		off := sampleRegion(img, l.Digits[i].off)
+		l.Digits[i].calibrateDigit(res.Digits[i].Segments, off, mask, l.Threshold)
+	}
+	return nil
+}
+
+// Calibrate using a previous scan.
+func (l *LcdDecoder) CalibrateScan(scan *ScanResult) error {
+	if len(scan.Digits) != len(l.Digits) {
+		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(scan.Digits), len(l.Digits))
+	}
+	for i := range l.Digits {
+		off := sampleRegion(scan.img, l.Digits[i].off)
+		l.Digits[i].calibrateDigit(scan.Digits[i].Segments, off, scan.Digits[i].Mask, l.Threshold)
 	}
 	return nil
 }
@@ -352,6 +376,7 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 		s := &l.Digits[v[0]].seg[v[1]]
 		s.min.Init(v[2])
 		s.max.Init(v[3])
+		s.threshold = threshold(s.min.Value, s.max.Value, l.Threshold)
 	}
 	for _, d := range l.Digits {
 		var min, max int
@@ -362,6 +387,7 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 		// Keep the average of the min and max.
 		d.min = min / len(d.seg)
 		d.max = max / len(d.seg)
+		d.threshold = threshold(d.min, d.max, l.Threshold)
 	}
 }
 
@@ -374,38 +400,22 @@ func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
 	}
 }
 
-// Scan one digit and return the segment mask.
-func (d *Digit) scan(img image.Image, threshold int) int {
-	lookup := 0
-	// off := rawSample(img, d.off)
-	for i := range d.seg {
-		s := scaledSample(img, d.seg[i].points, d.seg[i].min.Value, d.seg[i].max.Value)
-		// s := scaledSample(img, d.seg[i].points, off, d.seg[i].max)
-		if s >= threshold {
-			lookup |= 1 << uint(i)
-		}
-	}
-	return lookup
-}
-
 // Return true if decimal place is on.
-func (d *Digit) decimal(img image.Image, threshold int) bool {
-	return len(d.dp) != 0 && scaledSample(img, d.dp, d.min, d.max) >= threshold
+func (d *Digit) decimal(img image.Image) bool {
+	return len(d.dp) != 0 && sampleRegion(img, d.dp) >= d.threshold
 }
 
-// Calibrate one digit using an image.
-func (d *Digit) calibrateDigit(img image.Image, mask int) {
-	off := rawSample(img, d.off)
+// Calibrate one digit.
+func (d *Digit) calibrateDigit(samp []int, off, mask, th int) {
 	var tmax, tcount int
 	for i := range d.seg {
-		samp := rawSample(img, d.seg[i].points)
 		if ((1 << uint(i)) & mask) != 0 {
-			d.seg[i].max.Add(samp)
+			d.seg[i].max.Add(samp[i])
 			tmax += d.seg[i].max.Value
 			tcount++
 			d.seg[i].min.Set(off)
 		} else {
-			d.seg[i].min.Add(samp)
+			d.seg[i].min.Add(samp[i])
 		}
 	}
 	// For segments that are not on, set the max to an average of the segments
@@ -417,20 +427,23 @@ func (d *Digit) calibrateDigit(img image.Image, mask int) {
 	}
 	var max, min int
 	for i := range d.seg {
+		d.seg[i].threshold = threshold(d.seg[i].min.Value, d.seg[i].max.Value, th)
 		min += d.seg[i].min.Value
 		max += d.seg[i].max.Value
 	}
 	d.min = min / len(d.seg)
 	d.max = max / len(d.seg)
+	d.threshold = threshold(d.min, d.max, th)
 }
 
 // Set the min and max for the segments
-func (d *Digit) SetMinMax(min, max int) {
+func (d *Digit) SetMinMax(min, max, th int) {
 	d.min = min
 	d.max = max
 	for i := range d.seg {
 		d.seg[i].min.Init(min)
 		d.seg[i].max.Init(max)
+		d.seg[i].threshold = threshold(min, max, th)
 	}
 }
 
@@ -450,18 +463,14 @@ func (d *Digit) Max() []int {
 	return m
 }
 
-// Get the point samples for all the segments.
-func (d *Digit) Samples(img image.Image) []int {
-	s := make([]int, SEGMENTS, SEGMENTS)
-	for i := range d.seg {
-		s[i] = rawSample(img, d.seg[i].points)
-	}
-	return s
-}
-
 // Get the sampled off value.
 func (d *Digit) Off(img image.Image) int {
-	return rawSample(img, d.off)
+	return sampleRegion(img, d.off)
+}
+
+// Calculate the threshold using a percentage.
+func threshold(min, max, perc int) int {
+	return min + (max-min)*perc/100
 }
 
 func DigitsToSegments(s string) ([]int, error) {
@@ -476,27 +485,9 @@ func DigitsToSegments(s string) ([]int, error) {
 	return b, nil
 }
 
-// Using the sampled average, scale the result between 0 and 100,
-// (where 0 is lightest and 100 is darkest) using the min and max as limits.
-func scaledSample(img image.Image, slist sample, min, max int) int {
-	if min >= max {
-		log.Printf("min (%d) >= max (%d)!", min, max)
-		return 0
-	}
-	sample := rawSample(img, slist)
-	// Lock the sample within the min/max range.
-	if sample < min {
-		sample = min
-	}
-	if sample >= max {
-		sample = max - 1
-	}
-	return (sample - min) * 100 / (max - min)
-}
-
 // Sample the points. Each point is converted to grayscale and averaged
 // across all the points. The result is inverted so that darker values are higher.
-func rawSample(img image.Image, slist sample) int {
+func sampleRegion(img image.Image, slist sample) int {
 	var gacc int
 	for _, s := range slist {
 		c := img.At(s.x, s.y)

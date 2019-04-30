@@ -102,7 +102,7 @@ func NewReader(c *config.Section, trace bool) (*Reader, error) {
 		if err != nil {
 			return nil, err
 		}
-		r.Calibrate(img, "888888888888")
+		r.decoder.CalibrateImage(img, "888888888888")
 	}
 	return r, nil
 }
@@ -137,19 +137,20 @@ func (r *Reader) Save() {
 	}
 }
 
+// A successful scan is used to recalibrate the scan levels.
 func (r *Reader) GoodScan(res *ScanResult) {
 	if *recalibrate {
-		r.Calibrate(res.img, res.Text)
-	}
-}
-
-func (r *Reader) Calibrate(img image.Image, digits string) {
-	r.decoder.Calibrate(img, digits)
-	// Save the calibration data.
-	now := time.Now()
-	if time.Now().Sub(r.lastCalibration) >= calibrateCache {
-		r.lastCalibration = now
-		r.Save()
+		err := r.decoder.CalibrateScan(res)
+		if err != nil {
+			log.Printf("CalibrateScan error: %v\n", err)
+		} else {
+			// Regularly, save the calibration data.
+			now := time.Now()
+			if time.Now().Sub(r.lastCalibration) >= calibrateCache {
+				r.lastCalibration = now
+				r.Save()
+			}
+		}
 	}
 }
 
@@ -160,7 +161,7 @@ func (r *Reader) Read(img image.Image) (string, float64, error) {
 		var badSeg []string
 		for s := range res.Digits {
 			if !res.Digits[s].Valid {
-				badSeg = append(badSeg, fmt.Sprintf("%d[%02x]", s, res.Digits[s].Bits))
+				badSeg = append(badSeg, fmt.Sprintf("%d[%02x]", s, res.Digits[s].Mask))
 			}
 		}
 		return "", 0.0, fmt.Errorf("Bad read on segment[s] %s", strings.Join(badSeg, ","))

@@ -23,6 +23,13 @@ import (
 
 func CreateLcdDecoder(conf *config.Section) (*LcdDecoder, error) {
 	l := NewLcdDecoder()
+	t := conf.Get("threshold")
+	if len(t) > 0 {
+		v := readInts(t[0].Tokens)
+		if len(v) == 1 {
+			l.SetThreshold(v[0])
+		}
+	}
 	for _, e := range conf.Get("lcd") {
 		if len(e.Tokens) < 1 {
 			return nil, fmt.Errorf("No config for template at line %d", e.Lineno)
@@ -52,14 +59,7 @@ func CreateLcdDecoder(conf *config.Section) (*LcdDecoder, error) {
 			return nil, fmt.Errorf("Invalid digit config at line %d: %v", e.Lineno, err)
 		}
 		if len(v) == 4 {
-			d.SetMinMax(v[2], v[3])
-		}
-	}
-	t := conf.Get("threshold")
-	if len(t) > 0 {
-		v := readInts(t[0].Tokens)
-		if len(v) == 1 {
-			l.SetThreshold(v[0])
+			d.SetMinMax(v[2], v[3], l.Threshold)
 		}
 	}
 	return l, nil
