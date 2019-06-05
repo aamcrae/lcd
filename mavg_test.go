@@ -55,3 +55,23 @@ func TestAvg(t *testing.T) {
 		t.Fatalf("Expected value 36, got %d", b.Value)
 	}
 }
+
+func TestAvgCopy(t *testing.T) {
+	a := NewAvg(5)
+	a.Add(100)
+	a.Add(300)
+	b := a.Copy()
+	if b.Value != 200 {
+		t.Fatalf("Expected value 200, got %d", b.Value)
+	}
+	b.Add(400)
+	b.Add(400)
+	a.Add(100)
+	a.Add(100)
+	if a.Value != 150 {
+		t.Fatalf("Expected value 150, got %d", a.Value)
+	}
+	if b.Value != 300 {
+		t.Fatalf("Expected value 300, got %d", b.Value)
+	}
+}

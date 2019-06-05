@@ -33,6 +33,16 @@ func (m *Avg) Init(v int) {
 	}
 }
 
+func (m *Avg) Copy() *Avg {
+	na := new(Avg)
+	na.size = m.size
+	na.Value = m.Value
+	na.total = m.total
+	na.history = make([]int, len(m.history))
+	copy(na.history, m.history)
+	return na
+}
+
 // If not already set, init the moving average.
 func (m *Avg) Set(v int) {
 	if len(m.history) == 0 {

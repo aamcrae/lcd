@@ -32,6 +32,7 @@ var history = flag.Int("history", 5, "Size of history cache")
 const defaultThreshold = 50
 const offMargin = 5
 const onMargin = 2
+const levelMapSize = 10
 
 // Segments.
 const (
@@ -54,6 +55,7 @@ type DigitScan struct {
 	Segments []int
 }
 
+// ScanResult contains the results of decoding one image.
 type ScanResult struct {
 	img     image.Image
 	Text    string
@@ -61,14 +63,30 @@ type ScanResult struct {
 	Digits  []DigitScan
 }
 
+// Levels contains the calibration thresholds for all of the digit segments.
+type levels struct {
+	bad, good, quality int
+	digits             []*digLevels
+}
+
+type digLevels struct {
+	min       int
+	max       int
+	threshold int
+	segLevels [SEGMENTS]segLevels
+}
+
+type segLevels struct {
+	min       *Avg
+	max       *Avg
+	threshold int
+}
+
 type sample []point
 
 type segment struct {
-	bb        bbox
-	points    sample
-	max       *Avg
-	min       *Avg
-	threshold int
+	bb     bbox
+	points sample
 }
 
 // Base template for one type of digit.
@@ -91,25 +109,25 @@ type Template struct {
 
 // All points are absolute.
 type Digit struct {
-	index     int
-	pos       point
-	bb        bbox
-	dp        sample
-	tmr       point
-	tml       point
-	bmr       point
-	bml       point
-	off       sample
-	min       int
-	max       int
-	threshold int
-	seg       [SEGMENTS]segment
+	index int
+	pos   point
+	bb    bbox
+	dp    sample
+	tmr   point
+	tml   point
+	bmr   point
+	bml   point
+	off   sample
+	lev   *digLevels
+	seg   [SEGMENTS]segment
 }
 
 type LcdDecoder struct {
 	Digits    []*Digit
 	templates map[string]*Template
 	Threshold int
+	levelsMap map[*levels]*levels
+	curLevels *levels
 }
 
 // There are 128 possible values in a 7 segment display,
@@ -167,7 +185,12 @@ func init() {
 }
 
 func NewLcdDecoder() *LcdDecoder {
-	return &LcdDecoder{[]*Digit{}, map[string]*Template{}, defaultThreshold}
+	l := new(LcdDecoder)
+	l.templates = make(map[string]*Template)
+	l.Threshold = defaultThreshold
+	l.levelsMap = make(map[*levels]*levels)
+	l.curLevels = new(levels)
+	return l
 }
 
 // Add a digit template. Each template describes the parameters of a type of digit.
@@ -235,12 +258,12 @@ func (l *LcdDecoder) AddDigit(name string, x, y int) (*Digit, error) {
 	d.dp = offset(t.dp, x, y)
 	// Copy over the segment data from the template, offsetting the points
 	// using the digit's origin.
+	d.lev = new(digLevels)
 	for i := 0; i < SEGMENTS; i++ {
 		d.seg[i].bb = offsetBB(t.seg[i].bb, x, y)
 		d.seg[i].points = offset(t.seg[i].points, x, y)
-		d.seg[i].min = NewAvg(*history)
-		d.seg[i].max = NewAvg(*history)
-		d.seg[i].threshold = threshold(d.seg[i].min.Value, d.seg[i].max.Value, l.Threshold)
+		d.lev.segLevels[i].min = NewAvg(*history)
+		d.lev.segLevels[i].max = NewAvg(*history)
 	}
 	d.dp = offset(t.dp, x, y)
 	d.tmr.x = t.tmr.x + x
@@ -251,6 +274,7 @@ func (l *LcdDecoder) AddDigit(name string, x, y int) (*Digit, error) {
 	d.bmr.y = t.bmr.y + y
 	d.bml.x = t.bml.x + x
 	d.bml.y = t.bml.y + y
+	l.curLevels.digits = append(l.curLevels.digits, d.lev)
 	l.Digits = append(l.Digits, d)
 	return d, nil
 }
@@ -269,7 +293,7 @@ func (l *LcdDecoder) Decode(img image.Image) *ScanResult {
 		ds.Segments = make([]int, SEGMENTS, SEGMENTS)
 		for i := range ds.Segments {
 			ds.Segments[i] = sampleRegion(img, d.seg[i].points)
-			if ds.Segments[i] >= d.seg[i].threshold {
+			if ds.Segments[i] >= d.lev.segLevels[i].threshold {
 				ds.Mask |= 1 << uint(i)
 			}
 		}
@@ -373,84 +397,134 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			log.Printf("RestoreCalibration: line %d, out of range segment (%d)", line, v[1])
 			continue
 		}
-		s := &l.Digits[v[0]].seg[v[1]]
+		s := &l.curLevels.digits[v[0]].segLevels[v[1]]
 		s.min.Init(v[2])
 		s.max.Init(v[3])
 		s.threshold = threshold(s.min.Value, s.max.Value, l.Threshold)
 	}
-	for _, d := range l.Digits {
+	for _, d := range l.curLevels.digits {
 		var min, max int
-		for i := range d.seg {
-			min += d.seg[i].min.Value
-			max += d.seg[i].max.Value
+		for i := range d.segLevels {
+			min += d.segLevels[i].min.Value
+			max += d.segLevels[i].max.Value
 		}
 		// Keep the average of the min and max.
-		d.min = min / len(d.seg)
-		d.max = max / len(d.seg)
+		d.min = min / len(d.segLevels)
+		d.max = max / len(d.segLevels)
 		d.threshold = threshold(d.min, d.max, l.Threshold)
 	}
 }
 
 // Save the calibration data.
 func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
-	for i, d := range l.Digits {
-		for s := range d.seg {
-			fmt.Fprintf(w, "%d,%d,%d,%d\n", i, s, d.seg[s].min.Value, d.seg[s].max.Value)
+	for i, d := range l.curLevels.digits {
+		for s := range d.segLevels {
+			fmt.Fprintf(w, "%d,%d,%d,%d\n", i, s, d.segLevels[s].min.Value, d.segLevels[s].max.Value)
 		}
 	}
 }
 
+// Save the current levels in the map, discard the worst, and pick the best.
+func (l *LcdDecoder) Recalibrate() {
+	t := l.curLevels.bad + l.curLevels.good
+	if t != 0 {
+		l.curLevels.quality = l.curLevels.good * 100 / t
+		l.levelsMap[l.curLevels] = l.curLevels
+	}
+	var best, worst int
+	var lBest *levels
+	for lv := range l.levelsMap {
+		if lBest == nil {
+			best = lv.quality
+			worst = lv.quality
+			lBest = lv
+		}
+		if best < lv.quality {
+			lBest = lv
+			best = lv.quality
+		}
+		if worst > lv.quality {
+			worst = lv.quality
+		}
+	}
+	delete(l.levelsMap, lBest)
+	if len(l.levelsMap) <= levelMapSize {
+		// If the map is not full, leave a copy of the best calibration.
+		c := lBest.Copy()
+		l.levelsMap[c] = c
+	}
+	log.Printf("Recalibration: old %d (good %d, bad %d), new %d, worst %d, count %d",
+		l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best, worst, len(l.levelsMap))
+	lBest.bad = 0
+	lBest.good = 0
+	l.curLevels = lBest
+	for i := range l.curLevels.digits {
+		l.Digits[i].lev = l.curLevels.digits[i]
+	}
+}
+
+// Record a successful decode.
+func (l *LcdDecoder) Good() {
+	l.curLevels.good++
+}
+
+// Record an unsuccessful decode.
+func (l *LcdDecoder) Bad() {
+	l.curLevels.bad++
+}
+
 // Return true if decimal place is on.
 func (d *Digit) decimal(img image.Image) bool {
-	return len(d.dp) != 0 && sampleRegion(img, d.dp) >= d.threshold
+	return len(d.dp) != 0 && sampleRegion(img, d.dp) >= d.lev.threshold
 }
 
 // Calibrate one digit.
 func (d *Digit) calibrateDigit(samp []int, off, mask, th int) {
+	dl := d.lev
 	var tmax, tcount int
-	for i := range d.seg {
+	for i := range dl.segLevels {
 		if ((1 << uint(i)) & mask) != 0 {
-			d.seg[i].max.Add(samp[i])
-			tmax += d.seg[i].max.Value
+			dl.segLevels[i].max.Add(samp[i])
+			tmax += dl.segLevels[i].max.Value
 			tcount++
-			d.seg[i].min.Set(off)
+			dl.segLevels[i].min.Set(off)
 		} else {
-			d.seg[i].min.Add(samp[i])
+			dl.segLevels[i].min.Add(samp[i])
 		}
 	}
 	// For segments that are not on, set the max to an average of the segments
 	// that are on.
 	if tcount > 0 {
-		for i := range d.seg {
-			d.seg[i].max.Set(tmax / tcount)
+		for i := range dl.segLevels {
+			dl.segLevels[i].max.Set(tmax / tcount)
 		}
 	}
 	var max, min int
-	for i := range d.seg {
-		d.seg[i].threshold = threshold(d.seg[i].min.Value, d.seg[i].max.Value, th)
-		min += d.seg[i].min.Value
-		max += d.seg[i].max.Value
+	for i := range dl.segLevels {
+		dl.segLevels[i].threshold = threshold(dl.segLevels[i].min.Value, dl.segLevels[i].max.Value, th)
+		min += dl.segLevels[i].min.Value
+		max += dl.segLevels[i].max.Value
 	}
-	d.min = min / len(d.seg)
-	d.max = max / len(d.seg)
-	d.threshold = threshold(d.min, d.max, th)
+	dl.min = min / len(dl.segLevels)
+	dl.max = max / len(dl.segLevels)
+	dl.threshold = threshold(dl.min, dl.max, th)
 }
 
 // Set the min and max for the segments
 func (d *Digit) SetMinMax(min, max, th int) {
-	d.min = min
-	d.max = max
+	d.lev.min = min
+	d.lev.max = max
 	for i := range d.seg {
-		d.seg[i].min.Init(min)
-		d.seg[i].max.Init(max)
-		d.seg[i].threshold = threshold(min, max, th)
+		d.lev.segLevels[i].min.Init(min)
+		d.lev.segLevels[i].max.Init(max)
+		d.lev.segLevels[i].threshold = threshold(min, max, th)
 	}
 }
 
 func (d *Digit) Min() []int {
 	m := make([]int, SEGMENTS, SEGMENTS)
 	for i := range d.seg {
-		m[i] = d.seg[i].min.Value
+		m[i] = d.lev.segLevels[i].min.Value
 	}
 	return m
 }
@@ -458,7 +532,7 @@ func (d *Digit) Min() []int {
 func (d *Digit) Max() []int {
 	m := make([]int, SEGMENTS, SEGMENTS)
 	for i := range d.seg {
-		m[i] = d.seg[i].max.Value
+		m[i] = d.lev.segLevels[i].max.Value
 	}
 	return m
 }
@@ -466,6 +540,26 @@ func (d *Digit) Max() []int {
 // Get the sampled off value.
 func (d *Digit) Off(img image.Image) int {
 	return sampleRegion(img, d.off)
+}
+
+// Copy the calibration values struct.
+func (l *levels) Copy() *levels {
+	nl := new(levels)
+	nl.quality = l.quality
+	for _, d := range l.digits {
+		nd := new(digLevels)
+		nd.min = d.min
+		nd.max = d.max
+		nd.threshold = d.threshold
+		// Need to clone the moving averages.
+		for i := range nd.segLevels {
+			nd.segLevels[i].min = d.segLevels[i].min.Copy()
+			nd.segLevels[i].max = d.segLevels[i].max.Copy()
+			nd.segLevels[i].threshold = d.segLevels[i].threshold
+		}
+		nl.digits = append(nl.digits, nd)
+	}
+	return nl
 }
 
 // Calculate the threshold using a percentage.
