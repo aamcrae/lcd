@@ -432,12 +432,13 @@ func (l *LcdDecoder) Recalibrate() {
 		l.levelsMap[l.curLevels] = l.curLevels
 	}
 	var best, worst, avg int
-	var lBest *levels
+	var lBest, lWorst *levels
 	for lv := range l.levelsMap {
 		if lBest == nil {
 			best = lv.quality
 			worst = lv.quality
 			lBest = lv
+			lWorst = lv
 		}
 		if best < lv.quality {
 			lBest = lv
@@ -445,17 +446,22 @@ func (l *LcdDecoder) Recalibrate() {
 		}
 		if worst > lv.quality {
 			worst = lv.quality
+			lWorst = lv
 		}
 		avg += lv.quality
 	}
-	delete(l.levelsMap, lBest)
-	if len(l.levelsMap) < levelMapSize {
-		// If the map is not full, leave a copy of the best calibration.
-		c := lBest.Copy()
-		l.levelsMap[c] = c
+	// If the best is the current one, just take a copy and use that.
+	if best == l.curLevels.quality {
+		lBest = l.curLevels.Copy()
+	} else if len(l.levelsMap) >= levelMapSize {
+		// Remove the new candidate from the map.
+		delete(l.levelsMap, lBest)
 	}
-	log.Printf("Recalibration: old %d (good %d, bad %d), new %d, worst %d, avg %d",
-		l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best, worst, avg/len(l.levelsMap))
+	if len(l.levelsMap) > levelMapSize {
+		delete(l.levelsMap, lWorst)
+	}
+	log.Printf("Recalibration: old %d (good %d, bad %d), new %d, worst %d, count %d, avg %d",
+		l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best, worst, len(l.levelsMap), avg/len(l.levelsMap))
 	lBest.bad = 0
 	lBest.good = 0
 	l.curLevels = lBest
