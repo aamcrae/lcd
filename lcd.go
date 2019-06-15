@@ -456,8 +456,10 @@ func (l *LcdDecoder) Recalibrate() {
 	} else if len(l.levelsMap) >= levelMapSize {
 		// Remove the new candidate from the map.
 		delete(l.levelsMap, lBest)
+		avg -= best
 	}
 	if len(l.levelsMap) > levelMapSize {
+		avg -= worst
 		delete(l.levelsMap, lWorst)
 	}
 	log.Printf("Recalibration: old %d (good %d, bad %d), new %d, worst %d, count %d, avg %d",
