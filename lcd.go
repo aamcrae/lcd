@@ -27,12 +27,12 @@ import (
 )
 
 var history = flag.Int("history", 5, "Size of history cache")
+var levelSize = flag.Int("level_size", 40, "Size of level map")
 
 // Default threshold
 const defaultThreshold = 50
 const offMargin = 5
 const onMargin = 2
-const levelMapSize = 10
 
 // Segments.
 const (
@@ -453,12 +453,12 @@ func (l *LcdDecoder) Recalibrate() {
 	// If the best is the current one, just take a copy and use that.
 	if best == l.curLevels.quality {
 		lBest = l.curLevels.Copy()
-	} else if len(l.levelsMap) >= levelMapSize {
+	} else if len(l.levelsMap) >= *levelSize {
 		// Remove the new candidate from the map.
 		delete(l.levelsMap, lBest)
 		avg -= best
 	}
-	if len(l.levelsMap) > levelMapSize {
+	if len(l.levelsMap) > *levelSize {
 		avg -= worst
 		delete(l.levelsMap, lWorst)
 	}
