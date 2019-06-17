@@ -450,13 +450,8 @@ func (l *LcdDecoder) Recalibrate() {
 		}
 		avg += lv.quality
 	}
-	// If the best is the current one, just take a copy and use that.
-	if best == l.curLevels.quality {
-		lBest = l.curLevels.Copy()
-	} else if len(l.levelsMap) >= *levelSize {
-		// Remove the new candidate from the map.
-		delete(l.levelsMap, lBest)
-		avg -= best
+	if len(l.levelsMap) < *levelSize {
+		lBest = lBest.Copy()
 	}
 	if len(l.levelsMap) > *levelSize {
 		avg -= worst
