@@ -22,6 +22,7 @@ import (
 	"image/color"
 	"io"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -123,11 +124,12 @@ type Digit struct {
 }
 
 type LcdDecoder struct {
-	Digits    []*Digit
-	templates map[string]*Template
-	Threshold int
-	levelsMap map[*levels]*levels
-	curLevels *levels
+	Digits     []*Digit
+	templates  map[string]*Template
+	Threshold  int
+	levelsList []*levels
+	levelsAvg  int
+	curLevels  *levels
 }
 
 // There are 128 possible values in a 7 segment display,
@@ -188,7 +190,6 @@ func NewLcdDecoder() *LcdDecoder {
 	l := new(LcdDecoder)
 	l.templates = make(map[string]*Template)
 	l.Threshold = defaultThreshold
-	l.levelsMap = make(map[*levels]*levels)
 	l.curLevels = new(levels)
 	return l
 }
@@ -427,42 +428,24 @@ func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
 // Save the current levels in the map, discard the worst, and pick the best.
 func (l *LcdDecoder) Recalibrate() {
 	t := l.curLevels.bad + l.curLevels.good
-	if t != 0 {
-		l.curLevels.quality = l.curLevels.good * 100 / t
-		l.levelsMap[l.curLevels] = l.curLevels
-		cp := l.curLevels.Copy()
-		l.levelsMap[cp] = cp
-	}
-	var best, worst, avg int
-	var lBest, lWorst *levels
-	for lv := range l.levelsMap {
-		if lBest == nil {
-			best = lv.quality
-			worst = lv.quality
-			lBest = lv
-			lWorst = lv
-		}
-		if best < lv.quality {
-			lBest = lv
-			best = lv.quality
-		}
-		if worst > lv.quality {
-			worst = lv.quality
-			lWorst = lv
-		}
-		avg += lv.quality
-	}
-	delete(l.levelsMap, lBest)
-	avg -= best
-	if len(l.levelsMap) > *levelSize {
-		avg -= worst
-		delete(l.levelsMap, lWorst)
+	l.curLevels.quality = l.curLevels.good * 100 / t
+	l.levelsList = insert2(l.levelsList, l.curLevels)
+	l.levelsAvg += l.curLevels.quality * 2
+	sz := len(l.levelsList)
+	best := l.levelsList[sz-1]
+	worst := l.levelsList[0]
+	l.levelsAvg -= best.quality
+	if sz > *levelSize {
+		l.levelsAvg -= worst.quality
+		l.levelsList = l.levelsList[1 : sz-1]
+	} else {
+		l.levelsList = l.levelsList[:sz-1]
 	}
 	log.Printf("Recalibration: old %d (good %d, bad %d), new %d, worst %d, count %d, avg %d",
-		l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best, worst, len(l.levelsMap), avg/len(l.levelsMap))
-	lBest.bad = 0
-	lBest.good = 0
-	l.curLevels = lBest
+		l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best.quality, worst.quality, len(l.levelsList), l.levelsAvg/len(l.levelsList))
+	best.bad = 0
+	best.good = 0
+	l.curLevels = best
 	for i := range l.curLevels.digits {
 		l.Digits[i].lev = l.curLevels.digits[i]
 	}
@@ -565,6 +548,16 @@ func (l *levels) Copy() *levels {
 		nl.digits = append(nl.digits, nd)
 	}
 	return nl
+}
+
+// Insert 2 instances of the levels into the sorted list.
+func insert2(list []*levels, l *levels) []*levels {
+	index := sort.Search(len(list), func(i int) bool { return list[i].quality > l.quality })
+	list = append(list, nil, nil)
+	copy(list[index+2:], list[index:])
+	list[index] = l
+	list[index+1] = l.Copy()
+	return list
 }
 
 // Calculate the threshold using a percentage.
