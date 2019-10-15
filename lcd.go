@@ -370,8 +370,11 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA, fill bool) {
 
 // Restore the calibration data from a saved cache.
 // Format is a line of CSV:
+// quality
 // digit,segment,min,max
-func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
+func (l *LcdDecoder) RestoreCalibration(r io.Reader) *levels {
+	lev := l.curLevels.Copy()
+	lev.quality = 100
 	scanner := bufio.NewScanner(r)
 	var line int
 	for scanner.Scan() {
@@ -386,7 +389,10 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 				v = append(v, int(val))
 			}
 		}
-		if len(v) != 4 {
+		if len(v) == 1 {
+			lev.quality = v[0]
+			continue
+		} else if len(v) != 4 {
 			log.Printf("RestoreCalibration: line %d, too few fields (%d)", line, len(v))
 			continue
 		}
@@ -398,12 +404,12 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			log.Printf("RestoreCalibration: line %d, out of range segment (%d)", line, v[1])
 			continue
 		}
-		s := &l.curLevels.digits[v[0]].segLevels[v[1]]
+		s := &lev.digits[v[0]].segLevels[v[1]]
 		s.min.Init(v[2])
 		s.max.Init(v[3])
 		s.threshold = threshold(s.min.Value, s.max.Value, l.Threshold)
 	}
-	for _, d := range l.curLevels.digits {
+	for _, d := range lev.digits {
 		var min, max int
 		for i := range d.segLevels {
 			min += d.segLevels[i].min.Value
@@ -414,6 +420,7 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 		d.max = max / len(d.segLevels)
 		d.threshold = threshold(d.min, d.max, l.Threshold)
 	}
+	return lev
 }
 
 // Save the calibration data.
@@ -425,12 +432,23 @@ func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
 	}
 }
 
+// Add a new calibration to the list of calibrations.
+func (l *LcdDecoder) AddCalibration(lev *levels) {
+	l.levelsList = insert(l.levelsList, lev)
+	l.levelsAvg += lev.quality
+}
+
 // Save the current levels in the map, discard the worst, and pick the best.
 func (l *LcdDecoder) Recalibrate() {
 	t := l.curLevels.bad + l.curLevels.good
 	l.curLevels.quality = l.curLevels.good * 100 / t
-	l.levelsList = insert2(l.levelsList, l.curLevels)
-	l.levelsAvg += l.curLevels.quality * 2
+	l.AddCalibration(l.curLevels.Copy())
+	l.AddCalibration(l.curLevels)
+	l.PickCalibration()
+}
+
+// Pick the best calibration from the list.
+func (l *LcdDecoder) PickCalibration() {
 	sz := len(l.levelsList)
 	best := l.levelsList[sz-1]
 	worst := l.levelsList[0]
@@ -441,7 +459,7 @@ func (l *LcdDecoder) Recalibrate() {
 	} else {
 		l.levelsList = l.levelsList[:sz-1]
 	}
-	log.Printf("Recalibration: old %d (good %d, bad %d), new %d, worst %d, count %d, avg %d",
+	log.Printf("Recalibration: last %3d (good %2d, bad %2d), new %3d, worst %3d, count %2d, avg %3d",
 		l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best.quality, worst.quality, len(l.levelsList), l.levelsAvg/len(l.levelsList))
 	best.bad = 0
 	best.good = 0
@@ -550,13 +568,12 @@ func (l *levels) Copy() *levels {
 	return nl
 }
 
-// Insert 2 instances of the levels into the sorted list.
-func insert2(list []*levels, l *levels) []*levels {
+// Insert an instance of the levels into the sorted list.
+func insert(list []*levels, l *levels) []*levels {
 	index := sort.Search(len(list), func(i int) bool { return list[i].quality > l.quality })
-	list = append(list, nil, nil)
-	copy(list[index+2:], list[index:])
+	list = append(list, nil)
+	copy(list[index+1:], list[index:])
 	list[index] = l
-	list[index+1] = l.Copy()
 	return list
 }
 
