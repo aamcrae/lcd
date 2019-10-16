@@ -29,6 +29,7 @@ import (
 
 var history = flag.Int("history", 5, "Size of history cache")
 var levelSize = flag.Int("level_size", 40, "Size of level map")
+var savedLevels = flag.Int("level_saved", 50, "Number of levels saved")
 
 // Default threshold
 const defaultThreshold = 50
@@ -370,12 +371,12 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA, fill bool) {
 
 // Restore the calibration data from a saved cache.
 // Format is a line of CSV:
-// quality
-// digit,segment,min,max
-func (l *LcdDecoder) RestoreCalibration(r io.Reader) *levels {
-	lev := l.curLevels.Copy()
-	lev.quality = 100
+// index,quality
+// index,digit,segment,min,max
+func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
+	oldIndex := -1
 	scanner := bufio.NewScanner(r)
+	var lev *levels
 	var line int
 	for scanner.Scan() {
 		line++
@@ -389,45 +390,65 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) *levels {
 				v = append(v, int(val))
 			}
 		}
-		if len(v) == 1 {
-			lev.quality = v[0]
-			continue
-		} else if len(v) != 4 {
-			log.Printf("RestoreCalibration: line %d, too few fields (%d)", line, len(v))
+		if len(v) != 2 && len(v) != 5 {
+			log.Printf("RestoreCalibration: line %d, field count mismatch (%d)", line, len(v))
 			continue
 		}
-		if v[0] < 0 || v[0] >= len(l.Digits) {
-			log.Printf("RestoreCalibration: line %d, out of range digit (%d)", line, v[0])
+		if v[0] < 0 || v[0] >= *levelSize {
+			log.Printf("RestoreCalibration: line %d, level index out of range (%d)", line, v[0])
 			continue
 		}
-		if v[1] < 0 || v[1] >= SEGMENTS {
-			log.Printf("RestoreCalibration: line %d, out of range segment (%d)", line, v[1])
-			continue
+		if v[0] != oldIndex {
+			lev = l.curLevels.Copy()
+			lev.quality = 100
+			oldIndex = v[0]
+			l.levelsList = append(l.levelsList, lev)
 		}
-		s := &lev.digits[v[0]].segLevels[v[1]]
-		s.min.Init(v[2])
-		s.max.Init(v[3])
-		s.threshold = threshold(s.min.Value, s.max.Value, l.Threshold)
+		if len(v) == 2 {
+			lev.quality = v[1]
+		} else {
+			if v[1] < 0 || v[1] >= len(l.Digits) {
+				log.Printf("RestoreCalibration: line %d, out of range digit (%d)", line, v[1])
+				continue
+			}
+			if v[2] < 0 || v[2] >= SEGMENTS {
+				log.Printf("RestoreCalibration: line %d, out of range segment (%d)", line, v[2])
+				continue
+			}
+			s := &lev.digits[v[1]].segLevels[v[2]]
+			s.min.Init(v[3])
+			s.max.Init(v[4])
+			s.threshold = threshold(s.min.Value, s.max.Value, l.Threshold)
+		}
 	}
-	for _, d := range lev.digits {
-		var min, max int
-		for i := range d.segLevels {
-			min += d.segLevels[i].min.Value
-			max += d.segLevels[i].max.Value
+	for _, lv := range l.levelsList {
+		for _, d := range lv.digits {
+			var min, max int
+			for i := range d.segLevels {
+				min += d.segLevels[i].min.Value
+				max += d.segLevels[i].max.Value
+			}
+			// Keep the average of the min and max.
+			d.min = min / len(d.segLevels)
+			d.max = max / len(d.segLevels)
+			d.threshold = threshold(d.min, d.max, l.Threshold)
 		}
-		// Keep the average of the min and max.
-		d.min = min / len(d.segLevels)
-		d.max = max / len(d.segLevels)
-		d.threshold = threshold(d.min, d.max, l.Threshold)
+		l.levelsAvg += lv.quality
 	}
-	return lev
+	log.Printf("RestoreCalibration: %d entries read", len(l.levelsList))
 }
 
 // Save the calibration data.
 func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
-	for i, d := range l.curLevels.digits {
-		for s := range d.segLevels {
-			fmt.Fprintf(w, "%d,%d,%d,%d\n", i, s, d.segLevels[s].min.Value, d.segLevels[s].max.Value)
+	for li, lev := range l.levelsList {
+		if li >= *savedLevels {
+			break
+		}
+		fmt.Fprintf(w, "%d,%d\n", li, lev.quality)
+		for i, d := range lev.digits {
+			for s := range d.segLevels {
+				fmt.Fprintf(w, "%d,%d,%d,%d,%d\n", li, i, s, d.segLevels[s].min.Value, d.segLevels[s].max.Value)
+			}
 		}
 	}
 }
@@ -459,8 +480,10 @@ func (l *LcdDecoder) PickCalibration() {
 	} else {
 		l.levelsList = l.levelsList[:sz-1]
 	}
-	log.Printf("Recalibration: last %3d (good %2d, bad %2d), new %3d, worst %3d, count %2d, avg %3d",
-		l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best.quality, worst.quality, len(l.levelsList), l.levelsAvg/len(l.levelsList))
+	if len(l.levelsList) > 0 {
+		log.Printf("Recalibration: last %3d (good %2d, bad %2d), new %3d, worst %3d, count %2d, avg %3d",
+			l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best.quality, worst.quality, len(l.levelsList), l.levelsAvg/len(l.levelsList))
+	}
 	best.bad = 0
 	best.good = 0
 	l.curLevels = best
