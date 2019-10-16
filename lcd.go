@@ -377,6 +377,7 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 	oldIndex := -1
 	scanner := bufio.NewScanner(r)
 	var lev *levels
+	var levlist []*levels
 	var line int
 	for scanner.Scan() {
 		line++
@@ -402,7 +403,7 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			lev = l.curLevels.Copy()
 			lev.quality = 100
 			oldIndex = v[0]
-			l.levelsList = append(l.levelsList, lev)
+			levlist = append(levlist, lev)
 		}
 		if len(v) == 2 {
 			lev.quality = v[1]
@@ -421,7 +422,7 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			s.threshold = threshold(s.min.Value, s.max.Value, l.Threshold)
 		}
 	}
-	for _, lv := range l.levelsList {
+	for _, lv := range levlist {
 		for _, d := range lv.digits {
 			var min, max int
 			for i := range d.segLevels {
@@ -433,17 +434,18 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			d.max = max / len(d.segLevels)
 			d.threshold = threshold(d.min, d.max, l.Threshold)
 		}
-		l.levelsAvg += lv.quality
+		l.AddCalibration(lv)
 	}
 	log.Printf("RestoreCalibration: %d entries read", len(l.levelsList))
 }
 
 // Save the calibration data.
 func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
-	for li, lev := range l.levelsList {
-		if li >= *savedLevels {
-			break
-		}
+	start := len(l.levelsList) - *savedLevels
+	if start < 0 {
+		start = 0
+	}
+	for li, lev := range l.levelsList[start:] {
 		fmt.Fprintf(w, "%d,%d\n", li, lev.quality)
 		for i, d := range lev.digits {
 			for s := range d.segLevels {
