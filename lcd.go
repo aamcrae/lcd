@@ -127,6 +127,7 @@ type Digit struct {
 type LcdDecoder struct {
 	Digits     []*Digit
 	templates  map[string]*Template
+	offset     point
 	Threshold  int
 	levelsList []*levels
 	levelsAvg  int
