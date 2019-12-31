@@ -28,7 +28,7 @@ import (
 )
 
 var history = flag.Int("history", 5, "Size of history cache")
-var levelSize = flag.Int("level_size", 40, "Size of level map")
+var levelSize = flag.Int("level_size", 100, "Size of level map")
 var savedLevels = flag.Int("level_saved", 50, "Number of levels saved")
 
 // Default threshold
