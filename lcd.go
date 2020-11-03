@@ -65,7 +65,11 @@ type ScanResult struct {
 	Digits  []DigitScan
 }
 
-// Levels contains the calibration thresholds for all of the digit segments.
+// Levels contains the on/off thresholds for the digit segments.
+// They are stored as moving averages, and are recalculated dynamically
+// when successful translation of segments occurs.
+// They can be saved periodically, and restored from disk at startup
+// to provide an initial set of calibrated thresholds to use.
 type levels struct {
 	bad, good, quality int
 	digits             []*digLevels
@@ -377,8 +381,8 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA, fill bool) {
 func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 	oldIndex := -1
 	scanner := bufio.NewScanner(r)
-	var lev *levels
-	var levlist []*levels
+	var cal *levels
+	var calList []*levels
 	var line int
 	for scanner.Scan() {
 		line++
@@ -401,13 +405,13 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			continue
 		}
 		if v[0] != oldIndex {
-			lev = l.curLevels.Copy()
-			lev.quality = 100
+			cal = l.curLevels.Copy()
+			cal.quality = 100
 			oldIndex = v[0]
-			levlist = append(levlist, lev)
+			calList = append(calList, cal)
 		}
 		if len(v) == 2 {
-			lev.quality = v[1]
+			cal.quality = v[1]
 		} else {
 			if v[1] < 0 || v[1] >= len(l.Digits) {
 				log.Printf("RestoreCalibration: line %d, out of range digit (%d)", line, v[1])
@@ -417,13 +421,13 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 				log.Printf("RestoreCalibration: line %d, out of range segment (%d)", line, v[2])
 				continue
 			}
-			s := &lev.digits[v[1]].segLevels[v[2]]
+			s := &cal.digits[v[1]].segLevels[v[2]]
 			s.min.Init(v[3])
 			s.max.Init(v[4])
 			s.threshold = threshold(s.min.Value, s.max.Value, l.Threshold)
 		}
 	}
-	for _, lv := range levlist {
+	for _, lv := range calList {
 		for _, d := range lv.digits {
 			var min, max int
 			for i := range d.segLevels {
@@ -435,12 +439,23 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			d.max = max / len(d.segLevels)
 			d.threshold = threshold(d.min, d.max, l.Threshold)
 		}
-		l.AddCalibration(lv)
 	}
-	log.Printf("RestoreCalibration: %d entries read", len(l.levelsList))
+	// Fill entire calibration list with saved entries.
+	if len(calList) > 0 {
+		calIndex := 0
+		for i := 0; i < *levelSize; i += 1 {
+			l.AddCalibration(calList[calIndex].Copy())
+			calIndex += 1
+			if calIndex >= len(calList) {
+				calIndex = 0
+			}
+		}
+	}
+	log.Printf("RestoreCalibration: %d entries read", len(calList))
 }
 
-// Save the calibration data.
+// Save the threshold data. Only a selected number are saved,
+// not the entire list.
 func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
 	start := len(l.levelsList) - *savedLevels
 	if start < 0 {
@@ -468,6 +483,8 @@ func (l *LcdDecoder) Recalibrate() {
 	l.curLevels.quality = l.curLevels.good * 100 / t
 	l.AddCalibration(l.curLevels.Copy())
 	l.AddCalibration(l.curLevels)
+	l.levelsAvg -= l.levelsList[0].quality
+	l.levelsList = l.levelsList[1:]
 	l.PickCalibration()
 }
 
@@ -476,17 +493,11 @@ func (l *LcdDecoder) PickCalibration() {
 	sz := len(l.levelsList)
 	best := l.levelsList[sz-1]
 	worst := l.levelsList[0]
+	log.Printf("Recalibration: last %3d (good %2d, bad %2d), new %3d, worst %3d, count %d, avg %5.1f",
+		l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best.quality, worst.quality, sz, float32(l.levelsAvg)/float32(sz))
+	// Remove selected (best) entry from list.
 	l.levelsAvg -= best.quality
-	if sz > *levelSize {
-		l.levelsAvg -= worst.quality
-		l.levelsList = l.levelsList[1 : sz-1]
-	} else {
-		l.levelsList = l.levelsList[:sz-1]
-	}
-	if len(l.levelsList) > 0 {
-		log.Printf("Recalibration: last %3d (good %2d, bad %2d), new %3d, worst %3d, count %2d, avg %5.1f",
-			l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best.quality, worst.quality, len(l.levelsList), float32(l.levelsAvg)/float32(len(l.levelsList)))
-	}
+	l.levelsList = l.levelsList[:sz-1]
 	best.bad = 0
 	best.good = 0
 	l.curLevels = best
