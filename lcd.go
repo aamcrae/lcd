@@ -484,8 +484,8 @@ func (l *LcdDecoder) PickCalibration() {
 		l.levelsList = l.levelsList[:sz-1]
 	}
 	if len(l.levelsList) > 0 {
-		log.Printf("Recalibration: last %3d (good %2d, bad %2d), new %3d, worst %3d, count %2d, avg %3d",
-			l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best.quality, worst.quality, len(l.levelsList), l.levelsAvg/len(l.levelsList))
+		log.Printf("Recalibration: last %3d (good %2d, bad %2d), new %3d, worst %3d, count %2d, avg %5.1f",
+			l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best.quality, worst.quality, len(l.levelsList), float32(l.levelsAvg)/float32(len(l.levelsList)))
 	}
 	best.bad = 0
 	best.good = 0
