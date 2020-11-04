@@ -633,28 +633,28 @@ func DigitsToSegments(s string) ([]int, error) {
 
 // Sample the points. Each point is converted to grayscale and averaged
 // across all the points. The result is inverted so that darker values are higher.
-func sampleRegion(img image.Image, slist lib.PList) int {
+func sampleRegion(img image.Image, pl lib.PList) int {
 	var gacc int
-	for _, s := range slist {
+	for _, s := range pl {
 		c := img.At(s.X, s.Y)
 		pix := color.Gray16Model.Convert(c).(color.Gray16)
 		gacc += int(pix.Y)
 	}
-	return 0x10000 - gacc/len(slist)
+	return 0x10000 - gacc/len(pl)
 }
 
 func drawBB(img *image.RGBA, b lib.BBox, c color.Color) {
 	drawCross(img, b[:], c)
 }
 
-func drawFill(img *image.RGBA, s lib.PList, c color.Color) {
-	for _, p := range s {
+func drawFill(img *image.RGBA, pl lib.PList, c color.Color) {
+	for _, p := range pl {
 		img.Set(p.X, p.Y, c)
 	}
 }
 
-func drawCross(img *image.RGBA, s lib.PList, c color.Color) {
-	for _, p := range s {
+func drawCross(img *image.RGBA, pl lib.PList, c color.Color) {
+	for _, p := range pl {
 		x := p.X
 		y := p.Y
 		img.Set(x, y, c)
