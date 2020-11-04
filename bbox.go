@@ -14,7 +14,7 @@
 
 package lcd
 
-// Bounding box
+// Bounding box indices, representing the corners of the box (top/bottom left/right).
 const (
 	TL = iota
 	TR = iota
@@ -22,10 +22,12 @@ const (
 	BL = iota
 )
 
+// BBox represents a bounding box, with the indices above representing the corners.
 type BBox [4]Point
 
-// Make a bounding box for a segment.
-// Shrink the base by width as well.
+// Create a new bounding box representing one segment of a 7 segment digit.
+// w represents the width of the segment, and m represents a margin that shrinks the
+// box to ensure the box covers the bulk of the segment.
 func SegmentBB(s1, s2, e1, e2 Point, w, m int) BBox {
 	var bb BBox
 	bb[TL] = Adjust(s1, s2, w+m)
@@ -39,7 +41,8 @@ func SegmentBB(s1, s2, e1, e2 Point, w, m int) BBox {
 	return bb
 }
 
-// Create a new inner bounding box with the given margin.
+// Copy the bounding box, shrinking the box by m pixels on each side to
+// create an inner box.
 func (bb BBox) Inner(m int) BBox {
 	tl := Adjust(bb[TL], bb[TR], m)
 	tr := Adjust(bb[TR], bb[TL], m)
@@ -54,7 +57,7 @@ func (bb BBox) Inner(m int) BBox {
 }
 
 // Return a list of all the points in the bounding box.
-func (bb BBox) Fill() PList {
+func (bb BBox) Points() PList {
 	points := PList{}
 	// Find min and max X & Y that completely covers the bounding box.
 	minx := bb[0].X
@@ -75,6 +78,9 @@ func (bb BBox) Fill() PList {
 			maxy = bb[i].Y
 		}
 	}
+	// Create a list of all the points in the bounding box by iterating
+	// through all the points in the enclosing square and including
+	// the points that are in the bounding box.
 	for y := miny; y <= maxy; y++ {
 		for x := minx; x <= maxx; x++ {
 			p := Point{x, y}
@@ -172,7 +178,7 @@ func max(a, b int) int {
 	return b
 }
 
-// Create a new bounding box offset by x and y.
+// Create a new bounding box as a copy of bb, with the points offset by x and y.
 func (bb BBox) Offset(x, y int) BBox {
 	var nb BBox
 	for i := range bb {

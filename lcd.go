@@ -230,8 +230,8 @@ func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) err
 	// Build the 'off' sample using the middle blocks.
 	offbb1 := BBox{t.bb[TL], t.bb[TR], t.bmr, t.bml}.Inner(width + offMargin)
 	offbb2 := BBox{t.tml, t.tmr, t.bb[BR], t.bb[BL]}.Inner(width + offMargin)
-	t.off = offbb1.Fill()
-	t.off = append(t.off, offbb2.Fill()...)
+	t.off = offbb1.Points()
+	t.off = append(t.off, offbb2.Points()...)
 	// The assignments must match the bit allocation in
 	// the lookup table.
 	t.seg[S_TL].bb = SegmentBB(t.bb[TL], t.ml, t.bb[TR], t.mr, width, onMargin)
@@ -242,7 +242,7 @@ func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) err
 	t.seg[S_BL].bb = SegmentBB(t.ml, t.bb[BL], t.mr, t.bb[BR], width, onMargin)
 	t.seg[S_MM].bb = SegmentBB(t.tml, t.tmr, t.bb[BL], t.bb[BR], width, onMargin)
 	for i := range t.seg {
-		t.seg[i].points = t.seg[i].bb.Fill()
+		t.seg[i].points = t.seg[i].bb.Points()
 	}
 	l.templates[name] = t
 	return nil

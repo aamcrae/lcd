@@ -24,17 +24,20 @@ type Point struct {
 	Y int
 }
 
+// List of points.
 type PList []Point
 
-// return an adjusted point that is closer to e by the given amount.
-func Adjust(s, e Point, amt int) Point {
+// Return an adjusted point that is closer to e by the given amount.
+func Adjust(s, e Point, adj int) Point {
 	x := e.X - s.X
 	y := e.Y - s.Y
 	length := int(math.Round(math.Sqrt(float64(x*x)+float64(y*y)) + 0.5))
-	return Point{s.X + amt*x/length, s.Y + amt*y/length}
+	return Point{s.X + adj*x/length, s.Y + adj*y/length}
 }
 
-// Return a slice of points that splits the line into sections.
+// Return a list of points that splits the line (identified by start and
+// end) into a number of sections e.g if 3 sections are requested, a list of 2 points
+// are returned, representing the points 1/3 and 2/3 along the line.
 func Split(start, end Point, sections int) PList {
 	lx := end.X - start.X
 	ly := end.Y - start.Y
@@ -45,7 +48,7 @@ func Split(start, end Point, sections int) PList {
 	return p
 }
 
-// Build a new PList representing a square centered at p of width w.
+// Create a new point list representing a square centered at p of width w.
 func (p Point) Block(w int) PList {
 	w = w / 2
 	var s PList
@@ -57,7 +60,7 @@ func (p Point) Block(w int) PList {
 	return s
 }
 
-// Build a new point list, adding x and y to each point.
+// Create a new point list from the point list, adding a x and y offset to each point.
 func (p PList) Offset(x, y int) PList {
 	np := make(PList, len(p), len(p))
 	for i := range p {
@@ -67,6 +70,7 @@ func (p PList) Offset(x, y int) PList {
 	return np
 }
 
+// Print the point list.
 func (pl PList) Print() {
 	for _, p := range pl {
 		fmt.Printf("x = %d, y = %d\n", p.X, p.Y)
