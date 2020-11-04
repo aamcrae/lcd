@@ -48,6 +48,11 @@ func Split(start, end Point, sections int) PList {
 	return p
 }
 
+// Return a new point offset from this point by x, y.
+func (p Point) Offset(x, y int) Point {
+	return Point{p.X + x, p.Y + y}
+}
+
 // Create a new point list representing a square centered at p of width w.
 func (p Point) Block(w int) PList {
 	w = w / 2

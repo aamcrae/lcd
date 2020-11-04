@@ -48,21 +48,22 @@ const (
 	SEGMENTS   = iota
 )
 
+// DigitScan is the result of scanning one digit in the image.
 type DigitScan struct {
-	Char     byte
-	Str      string
-	Valid    bool
-	DP       bool
-	Mask     int
-	Segments []int
+	Char     byte   // The decoded character
+	Str      string // The decoded char as a string
+	Valid    bool   // True if the decode was successful
+	DP       bool   // True if the decimal point is set
+	Mask     int    // The segments that are set
+	Segments []int  // The summed average of the segment points.
 }
 
 // ScanResult contains the results of decoding one image.
 type ScanResult struct {
-	img     image.Image
-	Text    string
-	Invalid int
-	Digits  []DigitScan
+	img     image.Image // Image that has been decoded
+	Text    string      // Decoded string of digits
+	Invalid int         // Count of invalid digits
+	Digits  []DigitScan // List of scanned digits
 }
 
 // Levels contains the on/off thresholds for the digit segments.
@@ -93,8 +94,12 @@ type segment struct {
 	points PList
 }
 
-// Base template for one type of digit.
-// Points are all relative to top left corner position.
+// Base template for one type/size of 7-segment digit.
+// Points are all relative to the top left corner position.
+// When a digit is created using this template, the points are
+// offset from the point where the digit is placed.
+// The idea is that different size of digits use a different
+// template, and that multiple digits are created from a single template.
 type Template struct {
 	name string
 	line int
@@ -111,7 +116,10 @@ type Template struct {
 	seg  [SEGMENTS]segment
 }
 
-// All points are absolute.
+// Digit represents one 7-segment digit.
+// It is typically created from a template, by offsetting the relative
+// point values with the absolute point representing the top left of the digit.
+// All point values are absolute as a result.
 type Digit struct {
 	index int
 	pos   Point
@@ -126,17 +134,19 @@ type Digit struct {
 	seg   [SEGMENTS]segment
 }
 
+// LcdDecoder contains all the digit data required to decode
+// the digits in an image.
 type LcdDecoder struct {
-	Digits     []*Digit
-	templates  map[string]*Template
-	offset     Point
-	Threshold  int
-	levelsList []*levels
-	levelsAvg  int
-	curLevels  *levels
+	Digits       []*Digit             // List of digits to decode
+	templates    map[string]*Template // Templates used to create digits
+	offset       Point                // Global offset used to adjust image
+	Threshold    int                  // Default on/off threshold
+	levelsList   []*levels            // List of saved threshold levels
+	qualityTotal int                  // Sum of quality values
+	curLevels    *levels              // Current threshold levels
 }
 
-// There are 128 possible values in a 7 segment display,
+// There are 128 possible values in a 7 segment digit,
 // and this table maps a subset of the values to a string.
 const ____ = 0
 
@@ -190,6 +200,7 @@ func init() {
 	}
 }
 
+// Create a new LcdDecoder.
 func NewLcdDecoder() *LcdDecoder {
 	l := new(LcdDecoder)
 	l.templates = make(map[string]*Template)
@@ -198,7 +209,15 @@ func NewLcdDecoder() *LcdDecoder {
 	return l
 }
 
-// Add a digit template. Each template describes the parameters of a type of digit.
+// Add a digit template.
+// Each template describes the parameters of one type/size of digit.
+// bb contains a list of 3 points representing the top right,
+// bottom right and bottom left of the boundaries of the digit.
+// These are signed offsets from the implied base of (0,0) representing
+// the top left of the digit.
+// dp is an optional point offset where a decimal place is located.
+// width is the width of the segment in pixels.
+// All point references in the template are relative to the origin of the digit.
 func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) error {
 	if _, ok := l.templates[name]; ok {
 		return fmt.Errorf("Duplicate template entry: %s", name)
@@ -209,7 +228,7 @@ func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) err
 	if len(dp) != 0 && len(dp) != 2 {
 		return fmt.Errorf("Invalid decimal point")
 	}
-	// Prepend the implied TL origin.
+	// Prepend the implied top left origin (0,0).
 	bb = append([]int{0, 0}, bb...)
 	t := &Template{name: name, line: width}
 	for i := range t.bb {
@@ -219,21 +238,22 @@ func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) err
 	if len(dp) == 2 {
 		t.dp = Point{X: dp[0], Y: dp[1]}.Block((width + 1) / 2)
 	}
-	// Initialise the sample lists
-	// Middle points.
+	// Initialise the bounding boxes representing the segments of the digit.
+	// Calculate the middle points of the digit.
 	t.mr = Split(t.bb[TR], t.bb[BR], 2)[0]
 	t.tmr = Adjust(t.mr, t.bb[TR], width/2)
 	t.bmr = Adjust(t.mr, t.bb[BR], width/2)
 	t.ml = Split(t.bb[TL], t.bb[BL], 2)[0]
 	t.tml = Adjust(t.ml, t.bb[TL], width/2)
 	t.bml = Adjust(t.ml, t.bb[BL], width/2)
-	// Build the 'off' sample using the middle blocks.
+	// Build the 'off' point list using the middle blocks inside the
+	// upper and lower squares of the segments.
 	offbb1 := BBox{t.bb[TL], t.bb[TR], t.bmr, t.bml}.Inner(width + offMargin)
 	offbb2 := BBox{t.tml, t.tmr, t.bb[BR], t.bb[BL]}.Inner(width + offMargin)
 	t.off = offbb1.Points()
 	t.off = append(t.off, offbb2.Points()...)
-	// The assignments must match the bit allocation in
-	// the lookup table.
+	// Create the bounding boxes of each segment in the digit.
+	// The assignments must match the bit allocation in the lookup table.
 	t.seg[S_TL].bb = SegmentBB(t.bb[TL], t.ml, t.bb[TR], t.mr, width, onMargin)
 	t.seg[S_TM].bb = SegmentBB(t.bb[TL], t.bb[TR], t.bb[BL], t.bb[BR], width, onMargin)
 	t.seg[S_TR].bb = SegmentBB(t.bb[TR], t.mr, t.bb[TL], t.ml, width, onMargin)
@@ -241,6 +261,7 @@ func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) err
 	t.seg[S_BM].bb = SegmentBB(t.bb[BL], t.bb[BR], t.ml, t.mr, width, onMargin)
 	t.seg[S_BL].bb = SegmentBB(t.ml, t.bb[BL], t.mr, t.bb[BR], width, onMargin)
 	t.seg[S_MM].bb = SegmentBB(t.tml, t.tmr, t.bb[BL], t.bb[BR], width, onMargin)
+	// For each segment, create a list of all the points within the segment.
 	for i := range t.seg {
 		t.seg[i].points = t.seg[i].bb.Points()
 	}
@@ -249,7 +270,7 @@ func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) err
 }
 
 // Add a digit using the named template. The template points are offset
-// by the point location of the digit.
+// by the absolute point location of the digit (x, y).
 func (l *LcdDecoder) AddDigit(name string, x, y int) (*Digit, error) {
 	t, ok := l.templates[name]
 	if !ok {
@@ -271,14 +292,10 @@ func (l *LcdDecoder) AddDigit(name string, x, y int) (*Digit, error) {
 		d.lev.segLevels[i].max = NewAvg(*history)
 	}
 	d.dp = t.dp.Offset(x, y)
-	d.tmr.X = t.tmr.X + x
-	d.tmr.Y = t.tmr.Y + y
-	d.tml.X = t.tml.X + x
-	d.tml.Y = t.tml.Y + y
-	d.bmr.X = t.bmr.X + x
-	d.bmr.Y = t.bmr.Y + y
-	d.bml.X = t.bml.X + x
-	d.bml.Y = t.bml.Y + y
+	d.tmr = t.tmr.Offset(x, y)
+	d.tml = t.tml.Offset(x, y)
+	d.bmr = t.bmr.Offset(x, y)
+	d.bml = t.bml.Offset(x, y)
 	l.curLevels.digits = append(l.curLevels.digits, d.lev)
 	l.Digits = append(l.Digits, d)
 	return d, nil
@@ -288,22 +305,26 @@ func (l *LcdDecoder) SetThreshold(th int) {
 	l.Threshold = th
 }
 
-// Decode the LCD digits in the image.
+// Decode the 7 segment digits in the image.
 func (l *LcdDecoder) Decode(img image.Image) *ScanResult {
 	var res ScanResult
+	// Save the image
 	res.img = img
 	var str []byte
 	for _, d := range l.Digits {
 		var ds DigitScan
 		ds.Segments = make([]int, SEGMENTS, SEGMENTS)
 		for i := range ds.Segments {
+			// Sample the segment blocks.
 			ds.Segments[i] = sampleRegion(img, d.seg[i].points)
 			if ds.Segments[i] >= d.lev.segLevels[i].threshold {
+				// Set mask bit if segment considered 'on'.
 				ds.Mask |= 1 << uint(i)
 			}
 		}
 		ds.Char, ds.Valid = resultTable[ds.Mask]
 		if ds.Valid {
+			// Valid character found.
 			ds.Str = string([]byte{ds.Char})
 		} else {
 			res.Invalid++
@@ -320,11 +341,13 @@ func (l *LcdDecoder) Decode(img image.Image) *ScanResult {
 	return &res
 }
 
-// Calibrate calculates the on and off values from the image provided.
+// Calibrate calculates the on and off threshold values from the image provided,
+// using digits as the value of the segments.
 func (l *LcdDecoder) CalibrateImage(img image.Image, digits string) error {
 	if len(digits) != len(l.Digits) {
 		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(digits), len(l.Digits))
 	}
+	// Create a decoded result for this image.
 	res := l.Decode(img)
 	for i := range l.Digits {
 		char := byte(digits[i])
@@ -332,13 +355,15 @@ func (l *LcdDecoder) CalibrateImage(img image.Image, digits string) error {
 		if !ok {
 			return fmt.Errorf("Unknown digit: 0x%02x", char)
 		}
+		// Use the bits that are expected to be on (found via the reverse lookup) to
+		// calibrate the values that are sampled from the image.
 		off := sampleRegion(img, l.Digits[i].off)
 		l.Digits[i].calibrateDigit(res.Digits[i].Segments, off, mask, l.Threshold)
 	}
 	return nil
 }
 
-// Calibrate using a previous scan.
+// Calibrate using a previous result.
 func (l *LcdDecoder) CalibrateScan(scan *ScanResult) error {
 	if len(scan.Digits) != len(l.Digits) {
 		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(scan.Digits), len(l.Digits))
@@ -472,7 +497,7 @@ func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
 // Add a new calibration to the list of calibrations.
 func (l *LcdDecoder) AddCalibration(lev *levels) {
 	l.levelsList = insert(l.levelsList, lev)
-	l.levelsAvg += lev.quality
+	l.qualityTotal += lev.quality
 }
 
 // Save the current levels in the map, discard the worst, and pick the best.
@@ -481,7 +506,7 @@ func (l *LcdDecoder) Recalibrate() {
 	l.curLevels.quality = l.curLevels.good * 100 / t
 	l.AddCalibration(l.curLevels.Copy())
 	l.AddCalibration(l.curLevels)
-	l.levelsAvg -= l.levelsList[0].quality
+	l.qualityTotal -= l.levelsList[0].quality
 	l.levelsList = l.levelsList[1:]
 	l.PickCalibration()
 }
@@ -492,9 +517,9 @@ func (l *LcdDecoder) PickCalibration() {
 	best := l.levelsList[sz-1]
 	worst := l.levelsList[0]
 	log.Printf("Recalibration: last %3d (good %2d, bad %2d), new %3d, worst %3d, count %d, avg %5.1f",
-		l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best.quality, worst.quality, sz, float32(l.levelsAvg)/float32(sz))
+		l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best.quality, worst.quality, sz, float32(l.qualityTotal)/float32(sz))
 	// Remove selected (best) entry from list.
-	l.levelsAvg -= best.quality
+	l.qualityTotal -= best.quality
 	l.levelsList = l.levelsList[:sz-1]
 	best.bad = 0
 	best.good = 0
@@ -578,7 +603,7 @@ func (d *Digit) Max() []int {
 	return m
 }
 
-// Get the sampled off value.
+// Get the sampled 'off' value.
 func (d *Digit) Off(img image.Image) int {
 	return sampleRegion(img, d.off)
 }
@@ -629,8 +654,9 @@ func DigitsToSegments(s string) ([]int, error) {
 	return b, nil
 }
 
-// Sample the points. Each point is converted to grayscale and averaged
-// across all the points. The result is inverted so that darker values are higher.
+// Sample the points in the points list.
+// Each point is converted to grayscale and summed across all the points in the list.
+// The result is inverted so that darker values are higher.
 func sampleRegion(img image.Image, pl PList) int {
 	var gacc int
 	for _, s := range pl {

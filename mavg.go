@@ -14,6 +14,9 @@
 
 package lcd
 
+// Avg represents a moving average of a value.
+// A list of historical values is maintained and when new values
+// are added, the moving average is recalculated.
 type Avg struct {
 	size    int
 	Value   int
@@ -21,7 +24,8 @@ type Avg struct {
 	history []int
 }
 
-// Create a new moving average.
+// Create a new moving average structure, size indicating the
+// number of historical values to be kept.
 func NewAvg(size int) *Avg {
 	return &Avg{size: size}
 }
@@ -33,6 +37,7 @@ func (m *Avg) Init(v int) {
 	}
 }
 
+// Copy the moving average.
 func (m *Avg) Copy() *Avg {
 	na := new(Avg)
 	na.size = m.size
@@ -50,7 +55,8 @@ func (m *Avg) Set(v int) {
 	}
 }
 
-// Add a new value to the history slice and calculate the average.
+// Add a new value to the history slice, drop the oldest,
+// and recalculate the average.
 func (m *Avg) Add(v int) {
 	m.history = append(m.history, v)
 	m.total += v
