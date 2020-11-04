@@ -35,8 +35,8 @@ func CreateLcdDecoder(conf *config.Section) (*LcdDecoder, error) {
 	if len(o) > 0 {
 		v := readInts(o[0].Tokens)
 		if len(v) == 2 {
-			l.offset.x = v[0]
-			l.offset.y = v[1]
+			l.offset.X = v[0]
+			l.offset.Y = v[1]
 		}
 	}
 	for _, e := range conf.Get("lcd") {
@@ -63,7 +63,7 @@ func CreateLcdDecoder(conf *config.Section) (*LcdDecoder, error) {
 		if len(v) != 2 && len(v) != 4 {
 			return nil, fmt.Errorf("Bad config for digit at line %d", e.Lineno)
 		}
-		d, err := l.AddDigit(e.Tokens[0], v[0]+l.offset.x, v[1]+l.offset.y)
+		d, err := l.AddDigit(e.Tokens[0], v[0]+l.offset.X, v[1]+l.offset.Y)
 		if err != nil {
 			return nil, fmt.Errorf("Invalid digit config at line %d: %v", e.Lineno, err)
 		}
