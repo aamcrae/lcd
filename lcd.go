@@ -25,8 +25,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/aamcrae/MeterMan/lib"
 )
 
 var history = flag.Int("history", 5, "Size of history cache")
@@ -85,14 +83,14 @@ type digLevels struct {
 }
 
 type segLevels struct {
-	min       *lib.Avg
-	max       *lib.Avg
+	min       *Avg
+	max       *Avg
 	threshold int
 }
 
 type segment struct {
-	bb     lib.BBox
-	points lib.PList
+	bb     BBox
+	points PList
 }
 
 // Base template for one type of digit.
@@ -100,30 +98,30 @@ type segment struct {
 type Template struct {
 	name string
 	line int
-	bb   lib.BBox
-	off  lib.PList
-	dp   lib.PList
+	bb   BBox
+	off  PList
+	dp   PList
 	min  int
-	mr   lib.Point
-	ml   lib.Point
-	tmr  lib.Point
-	tml  lib.Point
-	bmr  lib.Point
-	bml  lib.Point
+	mr   Point
+	ml   Point
+	tmr  Point
+	tml  Point
+	bmr  Point
+	bml  Point
 	seg  [SEGMENTS]segment
 }
 
 // All points are absolute.
 type Digit struct {
 	index int
-	pos   lib.Point
-	bb    lib.BBox
-	dp    lib.PList
-	tmr   lib.Point
-	tml   lib.Point
-	bmr   lib.Point
-	bml   lib.Point
-	off   lib.PList
+	pos   Point
+	bb    BBox
+	dp    PList
+	tmr   Point
+	tml   Point
+	bmr   Point
+	bml   Point
+	off   PList
 	lev   *digLevels
 	seg   [SEGMENTS]segment
 }
@@ -131,7 +129,7 @@ type Digit struct {
 type LcdDecoder struct {
 	Digits     []*Digit
 	templates  map[string]*Template
-	offset     lib.Point
+	offset     Point
 	Threshold  int
 	levelsList []*levels
 	levelsAvg  int
@@ -219,30 +217,30 @@ func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) err
 		t.bb[i].Y = bb[i*2+1]
 	}
 	if len(dp) == 2 {
-		t.dp = lib.Point{X: dp[0], Y: dp[1]}.Block((width + 1) / 2)
+		t.dp = Point{X: dp[0], Y: dp[1]}.Block((width + 1) / 2)
 	}
 	// Initialise the sample lists
 	// Middle points.
-	t.mr = lib.Split(t.bb[lib.TR], t.bb[lib.BR], 2)[0]
-	t.tmr = lib.Adjust(t.mr, t.bb[lib.TR], width/2)
-	t.bmr = lib.Adjust(t.mr, t.bb[lib.BR], width/2)
-	t.ml = lib.Split(t.bb[lib.TL], t.bb[lib.BL], 2)[0]
-	t.tml = lib.Adjust(t.ml, t.bb[lib.TL], width/2)
-	t.bml = lib.Adjust(t.ml, t.bb[lib.BL], width/2)
+	t.mr = Split(t.bb[TR], t.bb[BR], 2)[0]
+	t.tmr = Adjust(t.mr, t.bb[TR], width/2)
+	t.bmr = Adjust(t.mr, t.bb[BR], width/2)
+	t.ml = Split(t.bb[TL], t.bb[BL], 2)[0]
+	t.tml = Adjust(t.ml, t.bb[TL], width/2)
+	t.bml = Adjust(t.ml, t.bb[BL], width/2)
 	// Build the 'off' sample using the middle blocks.
-	offbb1 := lib.BBox{t.bb[lib.TL], t.bb[lib.TR], t.bmr, t.bml}.Inner(width + offMargin)
-	offbb2 := lib.BBox{t.tml, t.tmr, t.bb[lib.BR], t.bb[lib.BL]}.Inner(width + offMargin)
+	offbb1 := BBox{t.bb[TL], t.bb[TR], t.bmr, t.bml}.Inner(width + offMargin)
+	offbb2 := BBox{t.tml, t.tmr, t.bb[BR], t.bb[BL]}.Inner(width + offMargin)
 	t.off = offbb1.Fill()
 	t.off = append(t.off, offbb2.Fill()...)
 	// The assignments must match the bit allocation in
 	// the lookup table.
-	t.seg[S_TL].bb = lib.SegmentBB(t.bb[lib.TL], t.ml, t.bb[lib.TR], t.mr, width, onMargin)
-	t.seg[S_TM].bb = lib.SegmentBB(t.bb[lib.TL], t.bb[lib.TR], t.bb[lib.BL], t.bb[lib.BR], width, onMargin)
-	t.seg[S_TR].bb = lib.SegmentBB(t.bb[lib.TR], t.mr, t.bb[lib.TL], t.ml, width, onMargin)
-	t.seg[S_BR].bb = lib.SegmentBB(t.mr, t.bb[lib.BR], t.ml, t.bb[lib.BL], width, onMargin)
-	t.seg[S_BM].bb = lib.SegmentBB(t.bb[lib.BL], t.bb[lib.BR], t.ml, t.mr, width, onMargin)
-	t.seg[S_BL].bb = lib.SegmentBB(t.ml, t.bb[lib.BL], t.mr, t.bb[lib.BR], width, onMargin)
-	t.seg[S_MM].bb = lib.SegmentBB(t.tml, t.tmr, t.bb[lib.BL], t.bb[lib.BR], width, onMargin)
+	t.seg[S_TL].bb = SegmentBB(t.bb[TL], t.ml, t.bb[TR], t.mr, width, onMargin)
+	t.seg[S_TM].bb = SegmentBB(t.bb[TL], t.bb[TR], t.bb[BL], t.bb[BR], width, onMargin)
+	t.seg[S_TR].bb = SegmentBB(t.bb[TR], t.mr, t.bb[TL], t.ml, width, onMargin)
+	t.seg[S_BR].bb = SegmentBB(t.mr, t.bb[BR], t.ml, t.bb[BL], width, onMargin)
+	t.seg[S_BM].bb = SegmentBB(t.bb[BL], t.bb[BR], t.ml, t.mr, width, onMargin)
+	t.seg[S_BL].bb = SegmentBB(t.ml, t.bb[BL], t.mr, t.bb[BR], width, onMargin)
+	t.seg[S_MM].bb = SegmentBB(t.tml, t.tmr, t.bb[BL], t.bb[BR], width, onMargin)
 	for i := range t.seg {
 		t.seg[i].points = t.seg[i].bb.Fill()
 	}
@@ -269,8 +267,8 @@ func (l *LcdDecoder) AddDigit(name string, x, y int) (*Digit, error) {
 	for i := 0; i < SEGMENTS; i++ {
 		d.seg[i].bb = t.seg[i].bb.Offset(x, y)
 		d.seg[i].points = t.seg[i].points.Offset(x, y)
-		d.lev.segLevels[i].min = lib.NewAvg(*history)
-		d.lev.segLevels[i].max = lib.NewAvg(*history)
+		d.lev.segLevels[i].min = NewAvg(*history)
+		d.lev.segLevels[i].max = NewAvg(*history)
 	}
 	d.dp = t.dp.Offset(x, y)
 	d.tmr.X = t.tmr.X + x
@@ -359,7 +357,7 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA, fill bool) {
 	white := color.RGBA{255, 255, 255, 255}
 	for _, d := range l.Digits {
 		drawBB(img, d.bb, white)
-		ext := lib.PList{d.tmr, d.tml, d.bmr, d.bml}
+		ext := PList{d.tmr, d.tml, d.bmr, d.bml}
 		drawCross(img, ext, white)
 		if fill {
 			drawFill(img, d.off, green)
@@ -633,7 +631,7 @@ func DigitsToSegments(s string) ([]int, error) {
 
 // Sample the points. Each point is converted to grayscale and averaged
 // across all the points. The result is inverted so that darker values are higher.
-func sampleRegion(img image.Image, pl lib.PList) int {
+func sampleRegion(img image.Image, pl PList) int {
 	var gacc int
 	for _, s := range pl {
 		c := img.At(s.X, s.Y)
@@ -643,17 +641,17 @@ func sampleRegion(img image.Image, pl lib.PList) int {
 	return 0x10000 - gacc/len(pl)
 }
 
-func drawBB(img *image.RGBA, b lib.BBox, c color.Color) {
+func drawBB(img *image.RGBA, b BBox, c color.Color) {
 	drawCross(img, b[:], c)
 }
 
-func drawFill(img *image.RGBA, pl lib.PList, c color.Color) {
+func drawFill(img *image.RGBA, pl PList, c color.Color) {
 	for _, p := range pl {
 		img.Set(p.X, p.Y, c)
 	}
 }
 
-func drawCross(img *image.RGBA, pl lib.PList, c color.Color) {
+func drawCross(img *image.RGBA, pl PList, c color.Color) {
 	for _, p := range pl {
 		x := p.X
 		y := p.Y
