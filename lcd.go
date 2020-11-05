@@ -94,46 +94,6 @@ type segment struct {
 	points PList
 }
 
-// Base template for one type/size of 7-segment digit.
-// Points are all relative to the top left corner position.
-// When a digit is created using this template, the points are
-// offset from the point where the digit is placed.
-// The idea is that different size of digits use a different
-// template, and that multiple digits are created from a single template.
-type Template struct {
-	name string
-	line int
-	bb   BBox
-	off  PList
-	dp   PList
-	min  int
-	mr   Point
-	ml   Point
-	tmr  Point
-	tml  Point
-	bmr  Point
-	bml  Point
-	seg  [SEGMENTS]segment
-}
-
-// Digit represents one 7-segment digit.
-// It is typically created from a template, by offsetting the relative
-// point values with the absolute point representing the top left of the digit.
-// All point values are absolute as a result.
-type Digit struct {
-	index int
-	pos   Point
-	bb    BBox
-	dp    PList
-	tmr   Point
-	tml   Point
-	bmr   Point
-	bml   Point
-	off   PList
-	lev   *digLevels
-	seg   [SEGMENTS]segment
-}
-
 // LcdDecoder contains all the digit data required to decode
 // the digits in an image.
 type LcdDecoder struct {
@@ -375,28 +335,6 @@ func (l *LcdDecoder) CalibrateScan(scan *ScanResult) error {
 	return nil
 }
 
-// Mark the segments on this image.
-func (l *LcdDecoder) MarkSamples(img *image.RGBA, fill bool) {
-	red := color.RGBA{255, 0, 0, 50}
-	green := color.RGBA{0, 255, 0, 50}
-	white := color.RGBA{255, 255, 255, 255}
-	for _, d := range l.Digits {
-		drawBB(img, d.bb, white)
-		ext := PList{d.tmr, d.tml, d.bmr, d.bml}
-		drawCross(img, ext, white)
-		if fill {
-			drawFill(img, d.off, green)
-		}
-		for i := range d.seg {
-			if fill {
-				drawFill(img, d.seg[i].points, red)
-			}
-			//drawBB(img, d.seg[i].bb, green)
-		}
-		drawFill(img, d.dp, red)
-	}
-}
-
 // Restore the calibration data from a saved cache.
 // Format is a line of CSV:
 // index,quality
@@ -539,76 +477,7 @@ func (l *LcdDecoder) Bad() {
 	l.curLevels.bad++
 }
 
-// Return true if decimal place is on.
-func (d *Digit) decimal(img image.Image) bool {
-	return len(d.dp) != 0 && sampleRegion(img, d.dp) >= d.lev.threshold
-}
-
-// Calibrate one digit.
-func (d *Digit) calibrateDigit(samp []int, off, mask, th int) {
-	dl := d.lev
-	var tmax, tcount int
-	for i := range dl.segLevels {
-		if ((1 << uint(i)) & mask) != 0 {
-			dl.segLevels[i].max.Add(samp[i])
-			tmax += dl.segLevels[i].max.Value
-			tcount++
-			dl.segLevels[i].min.Set(off)
-		} else {
-			dl.segLevels[i].min.Add(samp[i])
-		}
-	}
-	// For segments that are not on, set the max to an average of the segments
-	// that are on.
-	if tcount > 0 {
-		for i := range dl.segLevels {
-			dl.segLevels[i].max.Set(tmax / tcount)
-		}
-	}
-	var max, min int
-	for i := range dl.segLevels {
-		dl.segLevels[i].threshold = threshold(dl.segLevels[i].min.Value, dl.segLevels[i].max.Value, th)
-		min += dl.segLevels[i].min.Value
-		max += dl.segLevels[i].max.Value
-	}
-	dl.min = min / len(dl.segLevels)
-	dl.max = max / len(dl.segLevels)
-	dl.threshold = threshold(dl.min, dl.max, th)
-}
-
-// Set the min and max for the segments
-func (d *Digit) SetMinMax(min, max, th int) {
-	d.lev.min = min
-	d.lev.max = max
-	for i := range d.seg {
-		d.lev.segLevels[i].min.Init(min)
-		d.lev.segLevels[i].max.Init(max)
-		d.lev.segLevels[i].threshold = threshold(min, max, th)
-	}
-}
-
-func (d *Digit) Min() []int {
-	m := make([]int, SEGMENTS, SEGMENTS)
-	for i := range d.seg {
-		m[i] = d.lev.segLevels[i].min.Value
-	}
-	return m
-}
-
-func (d *Digit) Max() []int {
-	m := make([]int, SEGMENTS, SEGMENTS)
-	for i := range d.seg {
-		m[i] = d.lev.segLevels[i].max.Value
-	}
-	return m
-}
-
-// Get the sampled 'off' value.
-func (d *Digit) Off(img image.Image) int {
-	return sampleRegion(img, d.off)
-}
-
-// Copy the calibration values struct.
+// Copy the calibration threshold values struct.
 func (l *levels) Copy() *levels {
 	nl := new(levels)
 	nl.quality = l.quality
@@ -637,11 +506,26 @@ func insert(list []*levels, l *levels) []*levels {
 	return list
 }
 
-// Calculate the threshold using a percentage.
+// Calculate the threshold as a percentage between the min and max limits.
 func threshold(min, max, perc int) int {
 	return min + (max-min)*perc/100
 }
 
+// Sample the points in the points list.
+// Each point is converted to 16 bit grayscale and averaged across all the points in the list.
+// The 16 bit result is inverted so that darker values are higher.
+func sampleRegion(img image.Image, pl PList) int {
+	var gacc int
+	for _, s := range pl {
+		c := img.At(s.X, s.Y)
+		pix := color.Gray16Model.Convert(c).(color.Gray16)
+		gacc += int(pix.Y)
+	}
+	return 0x10000 - gacc/len(pl)
+}
+
+// Map each character in s to the bit mask representing the segments for
+// that character.
 func DigitsToSegments(s string) ([]int, error) {
 	var b []int
 	for i, c := range s {
@@ -654,17 +538,27 @@ func DigitsToSegments(s string) ([]int, error) {
 	return b, nil
 }
 
-// Sample the points in the points list.
-// Each point is converted to grayscale and summed across all the points in the list.
-// The result is inverted so that darker values are higher.
-func sampleRegion(img image.Image, pl PList) int {
-	var gacc int
-	for _, s := range pl {
-		c := img.At(s.X, s.Y)
-		pix := color.Gray16Model.Convert(c).(color.Gray16)
-		gacc += int(pix.Y)
+// Mark the segments on this image.
+// Draw white cross markers on the corners of the segments.
+// If fill true, block fill the on and off portions of the segments.
+func (l *LcdDecoder) MarkSamples(img *image.RGBA, fill bool) {
+	red := color.RGBA{255, 0, 0, 50}
+	green := color.RGBA{0, 255, 0, 50}
+	white := color.RGBA{255, 255, 255, 255}
+	for _, d := range l.Digits {
+		drawBB(img, d.bb, white)
+		ext := PList{d.tmr, d.tml, d.bmr, d.bml}
+		drawCross(img, ext, white)
+		if fill {
+			drawFill(img, d.off, green)
+		}
+		for i := range d.seg {
+			if fill {
+				drawFill(img, d.seg[i].points, red)
+			}
+		}
+		drawFill(img, d.dp, red)
 	}
-	return 0x10000 - gacc/len(pl)
 }
 
 func drawBB(img *image.RGBA, b BBox, c color.Color) {
