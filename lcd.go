@@ -12,21 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// package lcd implements a decoder that reads 7 segment display characters
+// from an image.
+
 package lcd
 
 import (
-	"flag"
 	"fmt"
 	"image"
 	"image/color"
 )
 
-var history = flag.Int("history", 5, "Size of history cache")
-var levelSize = flag.Int("level_size", 100, "Size of level map")
-var savedLevels = flag.Int("level_saved", 50, "Number of levels saved")
-
-// Default threshold and margins.
-const defaultThreshold = 50
+// Defaults for bounding box margins.
 const offMargin = 5
 const onMargin = 2
 
@@ -71,6 +68,8 @@ type LcdDecoder struct {
 	Digits       []*Digit             // List of digits to decode
 	templates    map[string]*Template // Templates used to create digits
 	Threshold    int                  // Default on/off threshold
+	History      int                  // Size of moving average history
+	MaxLevels    int                  // Maximum number of threshold levels
 	levelsList   []*levels            // List of saved threshold levels
 	qualityTotal int                  // Sum of quality values
 	curLevels    *levels              // Current threshold levels
@@ -135,7 +134,10 @@ func init() {
 func NewLcdDecoder() *LcdDecoder {
 	l := new(LcdDecoder)
 	l.templates = make(map[string]*Template)
-	l.Threshold = defaultThreshold
+	// Init defaults.
+	l.Threshold = 50  // Percentage threshold for on/off
+	l.History = 5     // Size of moving average cache
+	l.MaxLevels = 200 // Maximum size of threshold levels list
 	l.curLevels = new(levels)
 	return l
 }
@@ -219,8 +221,8 @@ func (l *LcdDecoder) AddDigit(name string, x, y int) (*Digit, error) {
 	for i := 0; i < SEGMENTS; i++ {
 		d.seg[i].bb = t.seg[i].bb.Offset(x, y)
 		d.seg[i].points = t.seg[i].points.Offset(x, y)
-		d.lev.segLevels[i].min = NewAvg(*history)
-		d.lev.segLevels[i].max = NewAvg(*history)
+		d.lev.segLevels[i].min = NewAvg(l.History)
+		d.lev.segLevels[i].max = NewAvg(l.History)
 	}
 	d.dp = t.dp.Offset(x, y)
 	d.tmr = t.tmr.Offset(x, y)

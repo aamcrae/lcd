@@ -20,6 +20,8 @@ import (
 	"image/color"
 )
 
+// Functions used by test or utility programs.
+
 // Map each character in s to the bit mask representing the segments for
 // that character.
 func DigitsToSegments(s string) ([]int, error) {

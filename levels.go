@@ -108,8 +108,8 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			log.Printf("RestoreCalibration: line %d, field count mismatch (%d)", line, len(v))
 			continue
 		}
-		if v[0] < 0 || v[0] >= *levelSize {
-			log.Printf("RestoreCalibration: line %d, level index out of range (%d)", line, v[0])
+		if v[0] < 0 || v[0] >= l.MaxLevels {
+			log.Printf("RestoreCalibration: line %d, level index (%d) out of range, max %d", line, v[0], l.MaxLevels)
 			continue
 		}
 		if v[0] != oldIndex {
@@ -151,7 +151,7 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 	// Fill entire calibration list with saved entries.
 	if len(calList) > 0 {
 		calIndex := 0
-		for i := 0; i < *levelSize; i += 1 {
+		for i := 0; i < l.MaxLevels; i += 1 {
 			l.AddCalibration(calList[calIndex].Copy())
 			calIndex += 1
 			if calIndex >= len(calList) {
@@ -164,8 +164,8 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 
 // Save the threshold data. Only a selected number are saved,
 // not the entire list.
-func (l *LcdDecoder) SaveCalibration(w io.WriteCloser) {
-	start := len(l.levelsList) - *savedLevels
+func (l *LcdDecoder) SaveCalibration(w io.WriteCloser, max int) {
+	start := len(l.levelsList) - max
 	if start < 0 {
 		start = 0
 	}
@@ -189,10 +189,16 @@ func (l *LcdDecoder) AddCalibration(lev *levels) {
 func (l *LcdDecoder) Recalibrate() {
 	t := l.curLevels.bad + l.curLevels.good
 	l.curLevels.quality = l.curLevels.good * 100 / t
+	// Add the most recent threshold calibration back into the list.
+	// It is added twice since the worst result is dropped if the list
+	// is at the maximum size.
 	l.AddCalibration(l.curLevels.Copy())
 	l.AddCalibration(l.curLevels)
-	l.qualityTotal -= l.levelsList[0].quality
-	l.levelsList = l.levelsList[1:]
+	if len(l.levelsList) > l.MaxLevels {
+		// Drop the worst result
+		l.qualityTotal -= l.levelsList[0].quality
+		l.levelsList = l.levelsList[1:]
+	}
 	l.PickCalibration()
 }
 
