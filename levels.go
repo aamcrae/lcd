@@ -25,10 +25,32 @@ import (
 	"strings"
 )
 
-// levels contains the on/off thresholds for the digit segments.
-// They are stored as moving averages, and are recalculated dynamically
-// when successful translation of segments occurs.
-// They can be saved periodically, and restored from disk at startup
+// levels contains the on/off thresholds for the individual segments.
+// Considerable effort is made to dynamically track these thresholds, since
+// light levels (and thus the value at which a segment is considered 'on' or 'off)
+// will vary depending on external conditions. The threshold tracking also
+// handles incorrect reading due to segments being captured in the middle of
+// transitioning.
+//
+// For each segment, a max, min and threshold is held.
+// The threshold represents the boundary at which a segment is considered
+// 'on' or 'off'.
+// The max and min are stored as moving averages, and are updated dynamically
+// when successful decoding of segments occurs - the averaged samples for each
+// segment are added either to the min or the max depending on whether the segment
+// is considered 'off' or 'on'. From the updated min and max, a new threshold is
+// calculated that is then used for future decodes.
+// A moving average is used so that a single poor read does not skew the
+// thresholds too much (such as can occur if the segments are changing at the time
+// the image is captured).
+// A quality value (0-100) is calculated for every set of thresholds, and this is used
+// to select a new set of thresholds periodically.
+//
+// TODO: Since all the segment points are sampled and then averaged, it may be possible to
+// define a minimum and maximum band that more accurately captures an 'on' or 'off' state,
+// and a middle band to detect segments that are transitioning.
+//
+// The list can be saved periodically, and restored from disk at startup
 // to provide an initial set of calibrated thresholds to use.
 type levels struct {
 	bad, good, quality int
