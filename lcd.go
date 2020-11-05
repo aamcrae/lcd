@@ -70,7 +70,6 @@ type segment struct {
 type LcdDecoder struct {
 	Digits       []*Digit             // List of digits to decode
 	templates    map[string]*Template // Templates used to create digits
-	offset       Point                // Global offset used to adjust image
 	Threshold    int                  // Default on/off threshold
 	levelsList   []*levels            // List of saved threshold levels
 	qualityTotal int                  // Sum of quality values
