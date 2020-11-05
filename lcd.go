@@ -93,7 +93,7 @@ var resultTable = map[int]byte{
 	M_TL | M_TM | ____ | M_BR | M_BM | ____ | M_MM: '5',
 	M_TL | M_TM | ____ | M_BR | M_BM | M_BL | M_MM: '6',
 	M_TL | M_TM | M_TR | M_BR | ____ | ____ | ____: '7',
-	____ | M_TM | M_TR | M_BR | ____ | ____ | ____: '7',	// Alternate '7'
+	____ | M_TM | M_TR | M_BR | ____ | ____ | ____: '7', // Alternate '7'
 	M_TL | M_TM | M_TR | M_BR | M_BM | M_BL | M_MM: '8',
 	M_TL | M_TM | M_TR | M_BR | M_BM | ____ | M_MM: '9',
 	M_TL | M_TM | M_TR | M_BR | ____ | M_BL | M_MM: 'A',
