@@ -25,19 +25,18 @@ import (
 // The idea is that different size of digits use a different
 // template, and that multiple digits are created from a single template.
 type Template struct {
-	name string
-	line int
-	bb   BBox
-	off  PList
-	dp   PList
-	min  int
-	mr   Point
-	ml   Point
-	tmr  Point
-	tml  Point
-	bmr  Point
-	bml  Point
-	seg  [SEGMENTS]segment
+	name string            // Name of template
+	line int               // Line width of segments
+	bb   BBox              // Bounding box of digit
+	off  PList             // List of points in off section
+	dp   PList             // Decimal point offset (if any)
+	mr   Point             // Middle right point
+	ml   Point             // Middle right point
+	tmr  Point             // Top middle right point
+	tml  Point             // Top iddle left point
+	bmr  Point             // Bottom middle right point
+	bml  Point             // Bottom middle left point
+	seg  [SEGMENTS]segment // Segments of digit
 }
 
 // Digit represents one 7-segment digit.
@@ -45,8 +44,7 @@ type Template struct {
 // point values with the absolute point representing the top left of the digit.
 // All point values are absolute as a result.
 type Digit struct {
-	index int
-	pos   Point
+	index int // Digit index
 	bb    BBox
 	dp    PList
 	tmr   Point
@@ -54,7 +52,7 @@ type Digit struct {
 	bmr   Point
 	bml   Point
 	off   PList
-	lev   *digLevels
+	lev   *digLevels // Threshold levels
 	seg   [SEGMENTS]segment
 }
 
