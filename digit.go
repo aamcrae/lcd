@@ -14,10 +14,6 @@
 
 package lcd
 
-import (
-	"image"
-)
-
 // Base template for one type/size of 7-segment digit.
 // Points are all relative to the top left corner position.
 // When a digit is created using this template, the points are
@@ -54,11 +50,6 @@ type Digit struct {
 	off   PList
 	lev   *digLevels // Threshold levels
 	seg   [SEGMENTS]segment
-}
-
-// Return true if decimal place is on.
-func (d *Digit) decimal(img image.Image) bool {
-	return len(d.dp) != 0 && sampleRegion(img, d.dp) >= d.lev.threshold
 }
 
 // Calibrate one digit.
@@ -102,11 +93,6 @@ func (d *Digit) SetMinMax(min, max, th int) {
 		d.lev.segLevels[i].max.Init(max)
 		d.lev.segLevels[i].threshold = threshold(min, max, th)
 	}
-}
-
-// Get the sampled 'off' value (usually the upper and lower blank squares).
-func (d *Digit) Off(img image.Image) int {
-	return sampleRegion(img, d.off)
 }
 
 // Retrieve the list of minimum values for this digit.

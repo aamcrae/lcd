@@ -20,7 +20,6 @@ import (
 	"image"
 	"io"
 	"log"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -28,13 +27,16 @@ import (
 // levels contains the on/off thresholds for the individual segments.
 // Considerable effort is made to dynamically track these thresholds, since
 // light levels (and thus the value at which a segment is considered 'on' or 'off)
-// will vary depending on external conditions. The threshold tracking also
-// handles incorrect reading due to segments being captured in the middle of
-// transitioning.
+// will vary over time depending on external conditions.
+// The threshold tracking also handles incorrect reading due to segments being
+// captured in the middle of transitioning to the opposite state.
 //
 // For each segment, a max, min and threshold is held.
-// The threshold represents the boundary at which a segment is considered
-// 'on' or 'off'.
+// Max and min represent the measured maximum and minimum levels representing
+// the 'on' and 'off' states respectively.
+// The threshold represents the middle point either side of which a segment
+// is considered 'on' or 'off'.
+//
 // The max and min are stored as moving averages, and are updated dynamically
 // when successful decoding of segments occurs - the averaged samples for each
 // segment are added either to the min or the max depending on whether the segment
@@ -52,22 +54,27 @@ import (
 //
 // The list can be saved periodically, and restored from disk at startup
 // to provide an initial set of calibrated thresholds to use.
+
 type levels struct {
-	bad, good, quality int
-	digits             []*digLevels
+	bad     int          // Count of undecodeable scans
+	good    int          // Count of successful scans
+	quality int          // quality metric 0-100
+	digits  []*digLevels // List of levels for each digit
 }
 
+// digLevels holds the calibration levels for one digit.
 type digLevels struct {
-	min       int
-	max       int
-	threshold int
-	segLevels [SEGMENTS]segLevels
+	min       int                 // Average min value for all segments
+	max       int                 // Average max value for all segments
+	threshold int                 // Average threshold
+	segLevels [SEGMENTS]segLevels // Per-segment levels data
 }
 
+// segLevels holds the calibration levels for one segment of a digit.
 type segLevels struct {
-	min       *Avg
-	max       *Avg
-	threshold int
+	min       *Avg // Moving average of minimum ('off') value
+	max       *Avg // Moving average of maximum ('on') value
+	threshold int  // Threshold middle point
 }
 
 // Calibrate calculates the on and off threshold values from the image provided,
@@ -86,7 +93,7 @@ func (l *LcdDecoder) CalibrateImage(img image.Image, digits string) error {
 		}
 		// Use the bits that are expected to be on (found via the reverse lookup) to
 		// calibrate the values that are sampled from the image.
-		off := sampleRegion(img, l.Digits[i].off)
+		off := l.sampleRegion(img, l.Digits[i].off)
 		l.Digits[i].calibrateDigit(res.Digits[i].Segments, off, mask, l.Threshold)
 	}
 	return nil
@@ -98,16 +105,16 @@ func (l *LcdDecoder) CalibrateScan(scan *ScanResult) error {
 		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(scan.Digits), len(l.Digits))
 	}
 	for i := range l.Digits {
-		off := sampleRegion(scan.img, l.Digits[i].off)
+		off := l.sampleRegion(scan.img, l.Digits[i].off)
 		l.Digits[i].calibrateDigit(scan.Digits[i].Segments, off, scan.Digits[i].Mask, l.Threshold)
 	}
 	return nil
 }
 
 // Restore the calibration data from a saved cache.
-// Format is a line of CSV:
-// index,quality
-// index,digit,segment,min,max
+// Format is a line of CSV, either:
+//   index,quality
+//   index,digit,segment,min,max
 func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 	oldIndex := -1
 	scanner := bufio.NewScanner(r)
@@ -184,62 +191,115 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 	log.Printf("RestoreCalibration: %d entries read", len(calList))
 }
 
-// Save the threshold data. Only a selected number are saved,
-// not the entire list.
+// Save the threshold data.
+// Only the highest quality level sets are saved.
 func (l *LcdDecoder) SaveCalibration(w io.WriteCloser, max int) {
-	start := len(l.levelsList) - max
-	if start < 0 {
-		start = 0
-	}
-	for li, lev := range l.levelsList[start:] {
-		fmt.Fprintf(w, "%d,%d\n", li, lev.quality)
-		for i, d := range lev.digits {
-			for s := range d.segLevels {
-				fmt.Fprintf(w, "%d,%d,%d,%d,%d\n", li, i, s, d.segLevels[s].min.Value, d.segLevels[s].max.Value)
+	written := 0
+	worst, best := l.qualRange()
+	for qual := best; qual >= worst; qual-- {
+		for _, lev := range l.levelsMap[qual] {
+			fmt.Fprintf(w, "%d,%d\n", written, lev.quality)
+			for i, d := range lev.digits {
+				for s := range d.segLevels {
+					fmt.Fprintf(w, "%d,%d,%d,%d,%d\n", written, i, s, d.segLevels[s].min.Value, d.segLevels[s].max.Value)
+				}
+			}
+			written++
+			if written == max {
+				return
 			}
 		}
 	}
 }
 
-// Add a new calibration to the list of calibrations.
+// Add a new calibration entry to the map
 func (l *LcdDecoder) AddCalibration(lev *levels) {
-	l.levelsList = insert(l.levelsList, lev)
+	l.levelsMap[lev.quality] = append(l.levelsMap[lev.quality], lev)
 	l.qualityTotal += lev.quality
+	l.levelsCount++
+	log.Printf("Adding entry to qual %d, number of entries: %d", lev.quality, len(l.levelsMap[lev.quality]))
 }
 
-// Save the current levels in the map, discard the worst, and pick the best.
+// Get one calibration entry from the map entry specified, removing
+// it from the map.
+// At least one element must exist in the map entry list.
+// The first list item is returned.
+// TODO: Consider selecting a random element.
+func (l *LcdDecoder) GetCalibration(qual int) *levels {
+	blist := l.levelsMap[qual]
+	l.levelsMap[qual] = blist[1:]
+	if len(blist) == 1 {
+		log.Printf("Removing entry from qual %d, none left, removing from map", qual)
+		delete(l.levelsMap, qual)
+	} else {
+		log.Printf("Removing entry from qual %d, number left: %d", qual, len(l.levelsMap[qual]))
+	}
+	// Adjust the total quality and count of levels.
+	l.qualityTotal -= qual
+	l.levelsCount--
+	return blist[0]
+}
+
+// Save the current levels calibration in the map, discard the worst, and pick the best.
 func (l *LcdDecoder) Recalibrate() {
+	// Calculate a quality metric between 0-100 inclusive from
+	// the total number of good and bad scans.
 	t := l.curLevels.bad + l.curLevels.good
 	l.curLevels.quality = l.curLevels.good * 100 / t
 	// Add the most recent threshold calibration back into the list.
-	// It is added twice since the worst result is dropped if the list
-	// is at the maximum size.
-	l.AddCalibration(l.curLevels.Copy())
 	l.AddCalibration(l.curLevels)
-	if len(l.levelsList) > l.MaxLevels {
-		// Drop the worst result
-		l.qualityTotal -= l.levelsList[0].quality
-		l.levelsList = l.levelsList[1:]
+	// If the map hasn't reached the maximum number, add a copy to
+	// increase the number of calibrations available.
+	if l.levelsCount < l.MaxLevels {
+		l.AddCalibration(l.curLevels.Copy())
+	} else {
+		// The map is at maximum capacity.
+		// Get the worst quality in the map, and if required
+		// drop the one of the worst and add another copy of the current one.
+		// If the current calibration is one of the worst, just ignore it.
+		w, _ := l.qualRange()
+		if w != l.curLevels.quality {
+			l.AddCalibration(l.curLevels.Copy())
+			l.GetCalibration(w)
+		}
 	}
 	l.PickCalibration()
 }
 
 // Pick the best calibration from the list.
 func (l *LcdDecoder) PickCalibration() {
-	sz := len(l.levelsList)
-	best := l.levelsList[sz-1]
-	worst := l.levelsList[0]
+	worst, best := l.qualRange()
 	log.Printf("Recalibration: last %3d (good %2d, bad %2d), new %3d, worst %3d, count %d, avg %5.1f",
-		l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best.quality, worst.quality, sz, float32(l.qualityTotal)/float32(sz))
-	// Remove selected (best) entry from list.
-	l.qualityTotal -= best.quality
-	l.levelsList = l.levelsList[:sz-1]
-	best.bad = 0
-	best.good = 0
-	l.curLevels = best
+		l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best, worst,
+		l.levelsCount, float32(l.qualityTotal)/float32(l.levelsCount))
+	// Get one entry from the list of the best.
+	l.curLevels = l.GetCalibration(best)
+	l.curLevels.bad = 0
+	l.curLevels.good = 0
 	for i := range l.curLevels.digits {
 		l.Digits[i].lev = l.curLevels.digits[i]
 	}
+}
+
+// Return the quality range of the calibration data as lowest to highest,
+// deleting any empty list entries in the map that are found.
+func (l *LcdDecoder) qualRange() (int, int) {
+	var best, worst int
+	// Init the best and worst from the first entry.
+	for q := range l.levelsMap {
+		best = q
+		worst = q
+		break
+	}
+	for q := range l.levelsMap {
+		if q > best {
+			best = q
+		}
+		if q < worst {
+			worst = q
+		}
+	}
+	return worst, best
 }
 
 // Record a successful decode.
@@ -270,15 +330,6 @@ func (l *levels) Copy() *levels {
 		nl.digits = append(nl.digits, nd)
 	}
 	return nl
-}
-
-// Insert an instance of the levels into the sorted list.
-func insert(list []*levels, l *levels) []*levels {
-	index := sort.Search(len(list), func(i int) bool { return list[i].quality > l.quality })
-	list = append(list, nil)
-	copy(list[index+1:], list[index:])
-	list[index] = l
-	return list
 }
 
 // Calculate the threshold as a percentage between the min and max limits.

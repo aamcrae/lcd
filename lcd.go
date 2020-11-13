@@ -65,12 +65,16 @@ type segment struct {
 // LcdDecoder contains all the digit data required to decode
 // the digits in an image.
 type LcdDecoder struct {
+	// Configuration values and flags.
+	Threshold int  // Default on/off threshold
+	History   int  // Size of moving average history
+	MaxLevels int  // Maximum number of threshold levels
+	Inverse   bool // True if darker is off e.g a LED rather than LCD.
+
 	Digits       []*Digit             // List of digits to decode
 	templates    map[string]*Template // Templates used to create digits
-	Threshold    int                  // Default on/off threshold
-	History      int                  // Size of moving average history
-	MaxLevels    int                  // Maximum number of threshold levels
-	levelsList   []*levels            // List of saved threshold levels
+	levelsCount  int                  // Current number of threshold levels
+	levelsMap    map[int][]*levels    // Map of saved threshold levels keyed by quality (0-100)
 	qualityTotal int                  // Sum of quality values
 	curLevels    *levels              // Current threshold levels
 }
@@ -138,6 +142,7 @@ func NewLcdDecoder() *LcdDecoder {
 	l.Threshold = 50  // Percentage threshold for on/off
 	l.History = 5     // Size of moving average cache
 	l.MaxLevels = 200 // Maximum size of threshold levels list
+	l.levelsMap = make(map[int][]*levels)
 	l.curLevels = new(levels)
 	return l
 }
@@ -249,7 +254,7 @@ func (l *LcdDecoder) Decode(img image.Image) *ScanResult {
 		ds.Segments = make([]int, SEGMENTS, SEGMENTS)
 		for i := range ds.Segments {
 			// Sample the segment blocks.
-			ds.Segments[i] = sampleRegion(img, d.seg[i].points)
+			ds.Segments[i] = l.sampleRegion(img, d.seg[i].points)
 			if ds.Segments[i] >= d.lev.segLevels[i].threshold {
 				// Set mask bit if segment considered 'on'.
 				ds.Mask |= 1 << uint(i)
@@ -264,7 +269,7 @@ func (l *LcdDecoder) Decode(img image.Image) *ScanResult {
 		}
 		str = append(str, ds.Char)
 		// Check for decimal place.
-		if d.decimal(img) {
+		if len(d.dp) != 0 && l.sampleRegion(img, d.dp) >= d.lev.threshold {
 			ds.DP = true
 			str = append(str, '.')
 		}
@@ -274,15 +279,21 @@ func (l *LcdDecoder) Decode(img image.Image) *ScanResult {
 	return &res
 }
 
-// Sample the points in the points list.
+// Sample the points in the points list, and return a 16 bit value where
+// a higher value indicates the region is 'on'.
 // Each point is converted to 16 bit grayscale and averaged across all the points in the list.
-// The 16 bit result is inverted so that darker values are higher.
-func sampleRegion(img image.Image, pl PList) int {
+func (l *LcdDecoder) sampleRegion(img image.Image, pl PList) int {
 	var gacc int
 	for _, s := range pl {
 		c := img.At(s.X, s.Y)
 		pix := color.Gray16Model.Convert(c).(color.Gray16)
 		gacc += int(pix.Y)
 	}
-	return 0x10000 - gacc/len(pl)
+	if l.Inverse {
+		// Lighter values are consider 'on' e.g when a LED is scanned.
+		return gacc / len(pl)
+	} else {
+		// Darker values are consider 'on' e.g when an LCD is scanned.
+		return 0x10000 - gacc/len(pl)
+	}
 }
