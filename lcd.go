@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"math/rand"
+	"time"
 )
 
 // Defaults for bounding box margins.
@@ -77,6 +79,7 @@ type LcdDecoder struct {
 	levelsMap    map[int][]*levels    // Map of saved threshold levels keyed by quality (0-100)
 	qualityTotal int                  // Sum of quality values
 	curLevels    *levels              // Current threshold levels
+	rng          *rand.Rand           // RNG
 }
 
 // There are 128 possible values in a 7 segment digit, but only a subset
@@ -144,6 +147,7 @@ func NewLcdDecoder() *LcdDecoder {
 	l.MaxLevels = 200 // Maximum size of threshold levels list
 	l.levelsMap = make(map[int][]*levels)
 	l.curLevels = new(levels)
+	l.rng = rand.New(rand.NewSource(time.Now().UnixNano()))
 	return l
 }
 

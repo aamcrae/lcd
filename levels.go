@@ -223,21 +223,27 @@ func (l *LcdDecoder) AddCalibration(lev *levels) {
 // Get one calibration entry from the map entry specified, removing
 // it from the map.
 // At least one element must exist in the map entry list.
-// The first list item is returned.
-// TODO: Consider selecting a random element.
-func (l *LcdDecoder) GetCalibration(qual int) *levels {
+func (l *LcdDecoder) GetCalibration(qual int) (lev *levels) {
 	blist := l.levelsMap[qual]
-	l.levelsMap[qual] = blist[1:]
 	if len(blist) == 1 {
+		// Only 1 entry.
+		lev = blist[0]
 		log.Printf("Removing entry from qual %d, none left, removing from map", qual)
 		delete(l.levelsMap, qual)
 	} else {
-		log.Printf("Removing entry from qual %d, number left: %d", qual, len(l.levelsMap[qual]))
+		// Select a random entry.
+		index := l.rng.Intn(len(blist))
+		lev = blist[index]
+		// Remove the element by copying the last element to this index and
+		// shortening the list by one element.
+		blist[index] = blist[len(blist)-1]
+		l.levelsMap[qual] = blist[:len(blist)-1]
+		log.Printf("Removing entry %d from qual %d, number left: %d", index, qual, len(l.levelsMap[qual]))
 	}
 	// Adjust the total quality and count of levels.
 	l.qualityTotal -= qual
 	l.levelsCount--
-	return blist[0]
+	return
 }
 
 // Save the current levels calibration in the map, discard the worst, and pick the best.
