@@ -73,13 +73,20 @@ type LcdDecoder struct {
 	MaxLevels int  // Maximum number of threshold levels
 	Inverse   bool // True if darker is off e.g a LED rather than LCD.
 
-	Digits       []*Digit             // List of digits to decode
-	templates    map[string]*Template // Templates used to create digits
-	levelsCount  int                  // Current number of threshold levels
-	levelsMap    map[int][]*levels    // Map of saved threshold levels keyed by quality (0-100)
-	qualityTotal int                  // Sum of quality values
-	curLevels    *levels              // Current threshold levels
-	rng          *rand.Rand           // RNG
+	Digits    []*Digit             // List of digits to decode
+	templates map[string]*Template // Templates used to create digits
+	levelsMap map[int][]*levels    // Map of saved threshold levels keyed by quality (0-100)
+	rng       *rand.Rand           // RNG
+	curLevels *levels              // Current threshold levels
+
+	// Current calibration levels summary
+	Best        int // Current highest quality
+	Worst       int // Current lowest quality
+	LastQuality int // Last quality level
+	LastGood    int // Last count of good scans
+	LastBad     int // Last count of bad scans
+	Count       int // Count of levels
+	Total       int // Sum of all qualities
 }
 
 // There are 128 possible values in a 7 segment digit, but only a subset

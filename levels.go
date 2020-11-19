@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"image"
 	"io"
-	"log"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -111,11 +111,21 @@ func (l *LcdDecoder) CalibrateScan(scan *ScanResult) error {
 	return nil
 }
 
+// Restore the calibration data from a file.
+func (l *LcdDecoder) RestoreFromFile(f string) (int, error) {
+	if of, err := os.Open(f); err != nil {
+		return 0, err
+	} else {
+		defer of.Close()
+		return l.Restore(of)
+	}
+}
+
 // Restore the calibration data from a saved cache.
 // Format is a line of CSV, either:
 //   index,quality
 //   index,digit,segment,min,max
-func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
+func (l *LcdDecoder) Restore(r io.Reader) (int, error) {
 	oldIndex := -1
 	scanner := bufio.NewScanner(r)
 	var cal *levels
@@ -127,19 +137,16 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 		tok := strings.Split(scanner.Text(), ",")
 		for _, s := range tok {
 			if val, err := strconv.ParseInt(s, 10, 32); err != nil {
-				log.Printf("RestoreCalibration: line %d: %v", line, err)
-				break
+				return len(calList), fmt.Errorf("line %d, bad number (%v): %s", line, err, tok)
 			} else {
 				v = append(v, int(val))
 			}
 		}
 		if len(v) != 2 && len(v) != 5 {
-			log.Printf("RestoreCalibration: line %d, field count mismatch (%d)", line, len(v))
-			continue
+			return len(calList), fmt.Errorf("line %d, illegal count of numbers (%d) - must be 2 or 5)", line, len(v))
 		}
 		if v[0] < 0 || v[0] >= l.MaxLevels {
-			log.Printf("RestoreCalibration: line %d, level index (%d) out of range, max %d", line, v[0], l.MaxLevels)
-			continue
+			return len(calList), fmt.Errorf("line %d, index (%d) out of range - max %d", line, v[0], l.MaxLevels)
 		}
 		if v[0] != oldIndex {
 			cal = l.curLevels.Copy()
@@ -151,12 +158,10 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			cal.quality = v[1]
 		} else {
 			if v[1] < 0 || v[1] >= len(l.Digits) {
-				log.Printf("RestoreCalibration: line %d, out of range digit (%d)", line, v[1])
-				continue
+				return len(calList), fmt.Errorf("line %d, out of range digit (%d)", line, v[1])
 			}
 			if v[2] < 0 || v[2] >= SEGMENTS {
-				log.Printf("RestoreCalibration: line %d, out of range segment (%d)", line, v[2])
-				continue
+				return len(calList), fmt.Errorf("line %d, out of range segment (%d)", line, v[2])
 			}
 			s := &cal.digits[v[1]].segLevels[v[2]]
 			s.min.Init(v[3])
@@ -188,36 +193,53 @@ func (l *LcdDecoder) RestoreCalibration(r io.Reader) {
 			}
 		}
 	}
-	log.Printf("RestoreCalibration: %d entries read", len(calList))
+	l.PickCalibration()
+	return len(calList), nil
+}
+
+// Save the threshold data to a file.
+func (l *LcdDecoder) SaveToFile(f string, max int) error {
+	if of, err := os.Create(f); err != nil {
+		return err
+	} else {
+		defer of.Close()
+		return l.Save(of, max)
+	}
 }
 
 // Save the threshold data.
 // Only the highest quality level sets are saved.
-func (l *LcdDecoder) SaveCalibration(w io.WriteCloser, max int) {
+func (l *LcdDecoder) Save(w io.WriteCloser, max int) error {
 	written := 0
 	worst, best := l.qualRange()
 	for qual := best; qual >= worst; qual-- {
 		for _, lev := range l.levelsMap[qual] {
-			fmt.Fprintf(w, "%d,%d\n", written, lev.quality)
+			_, err := fmt.Fprintf(w, "%d,%d\n", written, lev.quality)
+			if err != nil {
+				return err
+			}
 			for i, d := range lev.digits {
 				for s := range d.segLevels {
-					fmt.Fprintf(w, "%d,%d,%d,%d,%d\n", written, i, s, d.segLevels[s].min.Value, d.segLevels[s].max.Value)
+					_, err := fmt.Fprintf(w, "%d,%d,%d,%d,%d\n", written, i, s, d.segLevels[s].min.Value, d.segLevels[s].max.Value)
+					if err != nil {
+						return err
+					}
 				}
 			}
 			written++
 			if written == max {
-				return
+				return nil
 			}
 		}
 	}
+	return nil
 }
 
 // Add a new calibration entry to the map
 func (l *LcdDecoder) AddCalibration(lev *levels) {
 	l.levelsMap[lev.quality] = append(l.levelsMap[lev.quality], lev)
-	l.qualityTotal += lev.quality
-	l.levelsCount++
-	log.Printf("Adding entry to qual %d, number of entries: %d", lev.quality, len(l.levelsMap[lev.quality]))
+	l.Total += lev.quality
+	l.Count++
 }
 
 // Get one calibration entry from the map entry specified, removing
@@ -228,7 +250,6 @@ func (l *LcdDecoder) GetCalibration(qual int) (lev *levels) {
 	if len(blist) == 1 {
 		// Only 1 entry.
 		lev = blist[0]
-		log.Printf("Removing entry from qual %d, none left, removing from map", qual)
 		delete(l.levelsMap, qual)
 	} else {
 		// Select a random entry.
@@ -238,11 +259,10 @@ func (l *LcdDecoder) GetCalibration(qual int) (lev *levels) {
 		// shortening the list by one element.
 		blist[index] = blist[len(blist)-1]
 		l.levelsMap[qual] = blist[:len(blist)-1]
-		log.Printf("Removing entry %d from qual %d, number left: %d", index, qual, len(l.levelsMap[qual]))
 	}
 	// Adjust the total quality and count of levels.
-	l.qualityTotal -= qual
-	l.levelsCount--
+	l.Total -= qual
+	l.Count--
 	return
 }
 
@@ -256,7 +276,7 @@ func (l *LcdDecoder) Recalibrate() {
 	l.AddCalibration(l.curLevels)
 	// If the map hasn't reached the maximum number, add a copy to
 	// increase the number of calibrations available.
-	if l.levelsCount < l.MaxLevels {
+	if l.Count < l.MaxLevels {
 		l.AddCalibration(l.curLevels.Copy())
 	} else {
 		// The map is at maximum capacity.
@@ -274,12 +294,13 @@ func (l *LcdDecoder) Recalibrate() {
 
 // Pick the best calibration from the list.
 func (l *LcdDecoder) PickCalibration() {
-	worst, best := l.qualRange()
-	log.Printf("Recalibration: last %3d (good %2d, bad %2d), new %3d, worst %3d, count %d, avg %5.1f",
-		l.curLevels.quality, l.curLevels.good, l.curLevels.bad, best, worst,
-		l.levelsCount, float32(l.qualityTotal)/float32(l.levelsCount))
+	// Update quality summary.
+	l.Worst, l.Best = l.qualRange()
+	l.LastQuality = l.curLevels.quality
+	l.LastGood = l.curLevels.good
+	l.LastBad = l.curLevels.bad
 	// Get one entry from the list of the best.
-	l.curLevels = l.GetCalibration(best)
+	l.curLevels = l.GetCalibration(l.Best)
 	l.curLevels.bad = 0
 	l.curLevels.good = 0
 	for i := range l.curLevels.digits {
@@ -287,8 +308,7 @@ func (l *LcdDecoder) PickCalibration() {
 	}
 }
 
-// Return the quality range of the calibration data as lowest to highest,
-// deleting any empty list entries in the map that are found.
+// Return the quality range of the calibration data as lowest to highest.
 func (l *LcdDecoder) qualRange() (int, int) {
 	var best, worst int
 	// Init the best and worst from the first entry.
