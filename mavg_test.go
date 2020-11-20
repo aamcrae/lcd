@@ -37,12 +37,12 @@ func TestAvg(t *testing.T) {
 	if a.Value != 10 {
 		t.Fatalf("Expected value 10, got %d", a.Value)
 	}
-	a.Set(100)
+	a.SetDefault(100)
 	if a.Value != 10 {
 		t.Fatalf("Expected value 10, got %d", a.Value)
 	}
 	b := NewAvg(5)
-	b.Set(100)
+	b.SetDefault(100)
 	if b.Value != 100 {
 		t.Fatalf("Expected value 100, got %d", b.Value)
 	}

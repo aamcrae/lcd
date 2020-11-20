@@ -54,15 +54,15 @@ func runTest(t *testing.T, name, result, cal string) {
 	if err != nil {
 		t.Fatalf("Can't decode %s: %v", imagename, err)
 	}
-	err = lcd.CalibrateImage(img, cal)
+	err = lcd.Preset(img, cal)
 	if err != nil {
 		t.Errorf("Calibration Error for %s: %v", imagename, err)
 	}
 	res := lcd.Decode(img)
 	if res.Text != result {
-		for i := range res.Digits {
-			if !res.Digits[i].Valid {
-				fmt.Printf("Element %d not found, bits = 0x%02x\n", i, res.Digits[i].Mask)
+		for i := range res.Decodes {
+			if !res.Decodes[i].Valid {
+				fmt.Printf("Element %d not found, bits = 0x%02x\n", i, res.Scans[i].Mask)
 			}
 		}
 		t.Errorf("For test %s, expected %s, found %s", name, result, res.Text)

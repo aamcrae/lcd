@@ -48,8 +48,8 @@ func (m *Avg) Copy() *Avg {
 	return na
 }
 
-// If not already set, init the moving average.
-func (m *Avg) Set(v int) {
+// If not already initialised, init using this value.
+func (m *Avg) SetDefault(v int) {
 	if len(m.history) == 0 {
 		m.Init(v)
 	}

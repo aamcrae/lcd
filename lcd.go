@@ -19,8 +19,6 @@ package lcd
 
 import (
 	"fmt"
-	"image"
-	"image/color"
 	"math/rand"
 	"time"
 )
@@ -41,22 +39,41 @@ const (
 	SEGMENTS   = iota
 )
 
-// DigitScan is the result of scanning one digit in the image.
-type DigitScan struct {
-	Char     byte   // The decoded character
-	Str      string // The decoded char as a string
-	Valid    bool   // True if the decode was successful
-	DP       bool   // True if the decimal point is set
-	Mask     int    // The segments that are set
-	Segments []int  // The summed average of the segment points.
+// Base template for one type/size of 7-segment digit.
+// Points are all relative to the top left corner position.
+// When a digit is created using this template, the points are
+// offset from the point where the digit is placed.
+// The idea is that different size of digits use a different
+// template, and that multiple digits are created from a single template.
+type Template struct {
+	name string            // Name of template
+	line int               // Line width of segments
+	bb   BBox              // Bounding box of digit
+	off  PList             // List of points in off section
+	dp   PList             // Decimal point offset (if any)
+	mr   Point             // Middle right point
+	ml   Point             // Middle right point
+	tmr  Point             // Top middle right point
+	tml  Point             // Top iddle left point
+	bmr  Point             // Bottom middle right point
+	bml  Point             // Bottom middle left point
+	seg  [SEGMENTS]segment // Segments of digit
 }
 
-// ScanResult contains the results of decoding one image.
-type ScanResult struct {
-	img     image.Image // Image that has been decoded
-	Text    string      // Decoded string of digits
-	Invalid int         // Count of invalid digits
-	Digits  []DigitScan // List of scanned digits
+// Digit represents one 7-segment digit.
+// It is typically created from a template, by offsetting the relative
+// point values with the absolute point representing the top left of the digit.
+// All point values are absolute as a result.
+type Digit struct {
+	index int // Digit index
+	bb    BBox
+	dp    PList
+	tmr   Point
+	tml   Point
+	bmr   Point
+	bml   Point
+	off   PList
+	seg   [SEGMENTS]segment
 }
 
 type segment struct {
@@ -89,61 +106,6 @@ type LcdDecoder struct {
 	Total       int // Sum of all qualities
 }
 
-// There are 128 possible values in a 7 segment digit, but only a subset
-// are used to represent digits and characters.
-// This table maps that subset of bit masks to the digits and characters.
-const ____ = 0
-
-var resultTable = map[int]byte{
-	____ | ____ | ____ | ____ | ____ | ____ | ____: ' ',
-	____ | ____ | ____ | ____ | ____ | ____ | M_MM: '-',
-	M_TL | M_TM | M_TR | M_BR | M_BM | M_BL | ____: '0',
-	____ | ____ | M_TR | M_BR | ____ | ____ | ____: '1',
-	____ | M_TM | M_TR | ____ | M_BM | M_BL | M_MM: '2',
-	____ | M_TM | M_TR | M_BR | M_BM | ____ | M_MM: '3',
-	M_TL | ____ | M_TR | M_BR | ____ | ____ | M_MM: '4',
-	M_TL | M_TM | ____ | M_BR | M_BM | ____ | M_MM: '5',
-	M_TL | M_TM | ____ | M_BR | M_BM | M_BL | M_MM: '6',
-	M_TL | M_TM | M_TR | M_BR | ____ | ____ | ____: '7',
-	____ | M_TM | M_TR | M_BR | ____ | ____ | ____: '7', // Alternate '7'
-	M_TL | M_TM | M_TR | M_BR | M_BM | M_BL | M_MM: '8',
-	M_TL | M_TM | M_TR | M_BR | M_BM | ____ | M_MM: '9',
-	M_TL | M_TM | M_TR | M_BR | ____ | M_BL | M_MM: 'A',
-	M_TL | ____ | ____ | M_BR | M_BM | M_BL | M_MM: 'b',
-	M_TL | M_TM | ____ | ____ | M_BM | M_BL | ____: 'C',
-	____ | ____ | M_TR | M_BR | M_BM | M_BL | M_MM: 'd',
-	M_TL | M_TM | ____ | ____ | M_BM | M_BL | M_MM: 'E',
-	M_TL | M_TM | ____ | ____ | ____ | M_BL | M_MM: 'F',
-	M_TL | ____ | ____ | M_BR | ____ | M_BL | M_MM: 'h',
-	M_TL | ____ | M_TR | M_BR | ____ | M_BL | M_MM: 'H',
-	M_TL | ____ | ____ | ____ | M_BM | M_BL | ____: 'L',
-	M_TL | M_TM | M_TR | M_BR | ____ | M_BL | ____: 'N',
-	____ | ____ | ____ | M_BR | ____ | M_BL | M_MM: 'n',
-	____ | ____ | ____ | M_BR | M_BM | M_BL | M_MM: 'o',
-	M_TL | M_TM | M_TR | ____ | ____ | M_BL | M_MM: 'P',
-	____ | ____ | ____ | ____ | ____ | M_BL | M_MM: 'r',
-	M_TL | ____ | ____ | ____ | M_BM | M_BL | M_MM: 't',
-}
-
-// reverseTable maps a character to the segments that are on.
-// This is used in calibration to map
-// a character to the segments representing that character.
-var reverseTable map[byte]int = make(map[byte]int)
-
-// Initialise reverse table lookup.
-func init() {
-	for v, s := range resultTable {
-		r, ok := reverseTable[s]
-		// If an entry already exists use the one that has least segments.
-		if ok {
-			if v > r {
-				continue
-			}
-		}
-		reverseTable[s] = v
-	}
-}
-
 // Create a new LcdDecoder.
 func NewLcdDecoder() *LcdDecoder {
 	l := new(LcdDecoder)
@@ -153,7 +115,6 @@ func NewLcdDecoder() *LcdDecoder {
 	l.History = 5     // Size of moving average cache
 	l.MaxLevels = 200 // Maximum size of threshold levels list
 	l.levelsMap = make(map[int][]*levels)
-	l.curLevels = new(levels)
 	l.rng = rand.New(rand.NewSource(time.Now().UnixNano()))
 	return l
 }
@@ -233,78 +194,15 @@ func (l *LcdDecoder) AddDigit(name string, x, y int) (*Digit, error) {
 	d.dp = t.dp.Offset(x, y)
 	// Copy over the segment data from the template, offsetting the points
 	// using the digit's origin.
-	d.lev = new(digLevels)
 	for i := 0; i < SEGMENTS; i++ {
 		d.seg[i].bb = t.seg[i].bb.Offset(x, y)
 		d.seg[i].points = t.seg[i].points.Offset(x, y)
-		d.lev.segLevels[i].min = NewAvg(l.History)
-		d.lev.segLevels[i].max = NewAvg(l.History)
 	}
 	d.dp = t.dp.Offset(x, y)
 	d.tmr = t.tmr.Offset(x, y)
 	d.tml = t.tml.Offset(x, y)
 	d.bmr = t.bmr.Offset(x, y)
 	d.bml = t.bml.Offset(x, y)
-	l.curLevels.digits = append(l.curLevels.digits, d.lev)
 	l.Digits = append(l.Digits, d)
 	return d, nil
-}
-
-func (l *LcdDecoder) SetThreshold(th int) {
-	l.Threshold = th
-}
-
-// Decode the 7 segment digits in the image.
-func (l *LcdDecoder) Decode(img image.Image) *ScanResult {
-	var res ScanResult
-	// Save the image
-	res.img = img
-	var str []byte
-	for _, d := range l.Digits {
-		var ds DigitScan
-		ds.Segments = make([]int, SEGMENTS, SEGMENTS)
-		for i := range ds.Segments {
-			// Sample the segment blocks.
-			ds.Segments[i] = l.sampleRegion(img, d.seg[i].points)
-			if ds.Segments[i] >= d.lev.segLevels[i].threshold {
-				// Set mask bit if segment considered 'on'.
-				ds.Mask |= 1 << uint(i)
-			}
-		}
-		ds.Char, ds.Valid = resultTable[ds.Mask]
-		if ds.Valid {
-			// Valid character found.
-			ds.Str = string([]byte{ds.Char})
-		} else {
-			res.Invalid++
-		}
-		str = append(str, ds.Char)
-		// Check for decimal place.
-		if len(d.dp) != 0 && l.sampleRegion(img, d.dp) >= d.lev.threshold {
-			ds.DP = true
-			str = append(str, '.')
-		}
-		res.Digits = append(res.Digits, ds)
-	}
-	res.Text = string(str)
-	return &res
-}
-
-// Sample the points in the points list, and return a 16 bit value where
-// a higher value indicates the region is 'on'.
-// Each point is converted to 16 bit grayscale and averaged across all the points in the list.
-func (l *LcdDecoder) sampleRegion(img image.Image, pl PList) int {
-	var gacc int
-	for _, s := range pl {
-		c := img.At(s.X, s.Y)
-		pix := color.Gray16Model.Convert(c).(color.Gray16)
-		gacc += int(pix.Y)
-	}
-	if l.Inverse {
-		// Lighter values are consider 'on' e.g when a LED is scanned.
-		return gacc / len(pl)
-	} else {
-		// Darker values are consider 'on' e.g when an LCD is scanned.
-		return 0x10000 - gacc/len(pl)
-	}
 }

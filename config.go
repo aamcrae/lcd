@@ -31,7 +31,7 @@ func CreateLcdDecoder(conf *config.Section) (*LcdDecoder, error) {
 	if len(t) > 0 {
 		v := readInts(t[0].Tokens)
 		if len(v) == 1 {
-			l.SetThreshold(v[0])
+			l.Threshold = v[0]
 		}
 	}
 	// offset defines a bulk adjustment to all digits, as x and y offsets.
@@ -74,14 +74,9 @@ func CreateLcdDecoder(conf *config.Section) (*LcdDecoder, error) {
 		if len(v) != 2 && len(v) != 4 {
 			return nil, fmt.Errorf("Bad config for digit at line %d", e.Lineno)
 		}
-		d, err := l.AddDigit(e.Tokens[0], v[0]+xoff, v[1]+yoff)
+		_, err := l.AddDigit(e.Tokens[0], v[0]+xoff, v[1]+yoff)
 		if err != nil {
 			return nil, fmt.Errorf("Invalid digit config at line %d: %v", e.Lineno, err)
-		}
-		// An optional pair of min/max values may be defined that set the
-		// default min/max threshold values of the digit.
-		if len(v) == 4 {
-			d.SetMinMax(v[2], v[3], l.Threshold)
 		}
 	}
 	return l, nil

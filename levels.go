@@ -77,36 +77,50 @@ type segLevels struct {
 	threshold int  // Threshold middle point
 }
 
-// Calibrate calculates the on and off threshold values from the image provided,
-// using digits as the value of the segments.
-func (l *LcdDecoder) CalibrateImage(img image.Image, digits string) error {
-	if len(digits) != len(l.Digits) {
-		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(digits), len(l.Digits))
+// Preset calculates the on and off threshold values from the image provided,
+// using a preset result to map the on/off values for each segment.
+func (l *LcdDecoder) Preset(img image.Image, digits string) error {
+	// Scan the image.
+	scans := l.Scan(img)
+	if len(digits) != len(scans) {
+		return fmt.Errorf("Digit count mismatch (found: %d, expected: %d", len(digits), len(scans))
 	}
-	// Create a decoded result for this image.
-	res := l.Decode(img)
-	for i := range l.Digits {
+	for i, ds := range scans {
 		char := byte(digits[i])
-		mask, ok := reverseTable[char]
+		m, ok := reverseTable[char]
 		if !ok {
-			return fmt.Errorf("Unknown digit: 0x%02x", char)
+			return fmt.Errorf("Unknown digit %d: 0x%02x", i, char)
 		}
-		// Use the bits that are expected to be on (found via the reverse lookup) to
-		// calibrate the values that are sampled from the image.
-		off := l.sampleRegion(img, l.Digits[i].off)
-		l.Digits[i].calibrateDigit(res.Digits[i].Segments, off, mask, l.Threshold)
+		ds.Mask = m
 	}
-	return nil
+	l.curLevels = l.newLevels()
+	return l.CalibrateUsingScan(img, scans)
 }
 
-// Calibrate using a previous result.
-func (l *LcdDecoder) CalibrateScan(scan *ScanResult) error {
-	if len(scan.Digits) != len(l.Digits) {
-		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(scan.Digits), len(l.Digits))
+// Create a new levels structure.
+func (l *LcdDecoder) newLevels() *levels {
+	lev := new(levels)
+	for i := 0; i < len(l.Digits); i++ {
+		dl := new(digLevels)
+		for s := 0; s < SEGMENTS; s++ {
+			dl.segLevels[s].min = NewAvg(l.History)
+			dl.segLevels[s].max = NewAvg(l.History)
+		}
+		lev.digits = append(lev.digits, dl)
 	}
-	for i := range l.Digits {
-		off := l.sampleRegion(scan.img, l.Digits[i].off)
-		l.Digits[i].calibrateDigit(scan.Digits[i].Segments, off, scan.Digits[i].Mask, l.Threshold)
+	return lev
+}
+
+// Adjust levels using scan result and segment bit masks.
+func (l *LcdDecoder) CalibrateUsingScan(img image.Image, scans []*DigitScan) error {
+	if len(scans) != len(l.Digits) {
+		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(scans), len(l.Digits))
+	}
+	for i, d := range l.Digits {
+		// Calculate a default 'off' value for the digit using the off centre blocks
+		// of the digit.
+		off := l.sampleRegion(img, d.off)
+		l.curLevels.digits[i].adjustLevels(scans[i], off, l.Threshold)
 	}
 	return nil
 }
@@ -166,7 +180,7 @@ func (l *LcdDecoder) Restore(r io.Reader) (int, error) {
 			s := &cal.digits[v[1]].segLevels[v[2]]
 			s.min.Init(v[3])
 			s.max.Init(v[4])
-			s.threshold = threshold(s.min.Value, s.max.Value, l.Threshold)
+			s.threshold = thresholdPercent(s.min.Value, s.max.Value, l.Threshold)
 		}
 	}
 	for _, lv := range calList {
@@ -179,7 +193,7 @@ func (l *LcdDecoder) Restore(r io.Reader) (int, error) {
 			// Keep the average of the min and max.
 			d.min = min / len(d.segLevels)
 			d.max = max / len(d.segLevels)
-			d.threshold = threshold(d.min, d.max, l.Threshold)
+			d.threshold = thresholdPercent(d.min, d.max, l.Threshold)
 		}
 	}
 	// Fill entire calibration list with saved entries.
@@ -296,16 +310,15 @@ func (l *LcdDecoder) Recalibrate() {
 func (l *LcdDecoder) PickCalibration() {
 	// Update quality summary.
 	l.Worst, l.Best = l.qualRange()
-	l.LastQuality = l.curLevels.quality
-	l.LastGood = l.curLevels.good
-	l.LastBad = l.curLevels.bad
+	if l.curLevels != nil {
+		l.LastQuality = l.curLevels.quality
+		l.LastGood = l.curLevels.good
+		l.LastBad = l.curLevels.bad
+	}
 	// Get one entry from the list of the best.
 	l.curLevels = l.GetCalibration(l.Best)
 	l.curLevels.bad = 0
 	l.curLevels.good = 0
-	for i := range l.curLevels.digits {
-		l.Digits[i].lev = l.curLevels.digits[i]
-	}
 }
 
 // Return the quality range of the calibration data as lowest to highest.
@@ -358,7 +371,64 @@ func (l *levels) Copy() *levels {
 	return nl
 }
 
+// Adjust and update the levels for this digit. The goal is to update
+// the moving average for the max and min values representing 'on' and 'off',
+// and recalculate the threshold from the updated values.
+// The challenge is that the sampled data either represents the 'on' value
+// or the 'off' value, so effort is made to initialise the opposite to
+// a reasonable value.
+//
+// scan contains the sampled values, one per segment. The value represents either
+// the on value or the off value, depending on the mask bit for the segment.
+// off is an averaged 'off' value for the entire digit, used for the
+// off level for the segment when the segment is on.
+// threshold is the percentage separating on and off (e.g 50 for mid-point)
+func (d *digLevels) adjustLevels(scan *DigitScan, off, threshold int) {
+	var tmax, tcount int
+	for i := range d.segLevels {
+		if ((1 << uint(i)) & scan.Mask) != 0 {
+			// Mask bit is on, so the level represents
+			// an 'on' segment.
+			d.segLevels[i].max.Add(scan.Segments[i])
+			tmax += d.segLevels[i].max.Value
+			tcount++
+			d.segLevels[i].min.SetDefault(off)
+		} else {
+			// Mask bit is off, so the level represents
+			// an 'off' segment.
+			d.segLevels[i].min.Add(scan.Segments[i])
+		}
+	}
+	// For segments that are not on, set the max to an average of the segments
+	// that are on.
+	if tcount > 0 {
+		for i := range d.segLevels {
+			d.segLevels[i].max.SetDefault(tmax / tcount)
+		}
+	}
+	var max, min int
+	for i := range d.segLevels {
+		d.segLevels[i].threshold = thresholdPercent(d.segLevels[i].min.Value, d.segLevels[i].max.Value, threshold)
+		min += d.segLevels[i].min.Value
+		max += d.segLevels[i].max.Value
+	}
+	d.min = min / len(d.segLevels)
+	d.max = max / len(d.segLevels)
+	d.threshold = thresholdPercent(d.min, d.max, threshold)
+}
+
+// Set the min and max for the segments
+func (d *digLevels) InitLevels(min, max, th int) {
+	d.min = min
+	d.max = max
+	for _, sl := range d.segLevels {
+		sl.min.Init(min)
+		sl.max.Init(max)
+		sl.threshold = thresholdPercent(min, max, th)
+	}
+}
+
 // Calculate the threshold as a percentage between the min and max limits.
-func threshold(min, max, perc int) int {
+func thresholdPercent(min, max, perc int) int {
 	return min + (max-min)*perc/100
 }
