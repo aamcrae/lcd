@@ -99,8 +99,9 @@ func init() {
 	}
 }
 
-// Decode the 7 segment digits in the image, and return a
-// summary of the decoded values.
+// Decode the 7 segment digits in the image, and return a summary of the decoded values.
+// curLevels must be initialised either by having the levels restored from
+// a file, or having been calibrated with an image via Preset.
 func (l *LcdDecoder) Decode(img image.Image) *DecodeResult {
 	res := new(DecodeResult)
 	res.Img = img

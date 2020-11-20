@@ -163,7 +163,7 @@ func (l *LcdDecoder) Restore(r io.Reader) (int, error) {
 			return len(calList), fmt.Errorf("line %d, index (%d) out of range - max %d", line, v[0], l.MaxLevels)
 		}
 		if v[0] != oldIndex {
-			cal = l.curLevels.Copy()
+			cal = l.newLevels()
 			cal.quality = 100
 			oldIndex = v[0]
 			calList = append(calList, cal)
