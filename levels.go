@@ -93,7 +93,9 @@ func (l *LcdDecoder) Preset(img image.Image, digits string) error {
 		}
 		ds.Mask = m
 	}
-	l.curLevels = l.newLevels()
+	if l.curLevels == nil {
+		l.curLevels = l.newLevels()
+	}
 	return l.CalibrateUsingScan(img, scans)
 }
 
@@ -116,11 +118,32 @@ func (l *LcdDecoder) CalibrateUsingScan(img image.Image, scans []*DigitScan) err
 	if len(scans) != len(l.Digits) {
 		return fmt.Errorf("Digit count mismatch (digits: %d, calibration: %d", len(scans), len(l.Digits))
 	}
+	var default_on int
+	// If any digit has all segments off, we need to calculate an average max by
+	// averaging the on segments for all the (other) digits.
+	for _, s := range scans {
+		if s.Mask == 0 {
+			var on_segments int
+			for _, s2 := range scans {
+				for m := 0; m < SEGMENTS; m++ {
+					if (s2.Mask & (1 << uint(m))) != 0 {
+						on_segments++
+						default_on += s2.Segments[m]
+					}
+				}
+			}
+			if on_segments == 0 {
+				return fmt.Errorf("No segments are on, unable to calibrate")
+			}
+			default_on = default_on / on_segments
+			break
+		}
+	}
 	for i, d := range l.Digits {
 		// Calculate a default 'off' value for the digit using the off centre blocks
 		// of the digit.
-		off := l.sampleRegion(img, d.off)
-		l.curLevels.digits[i].adjustLevels(scans[i], off, l.Threshold)
+		default_off := l.sampleRegion(img, d.off)
+		l.curLevels.digits[i].adjustLevels(scans[i], default_off, default_on, l.Threshold)
 	}
 	return nil
 }
@@ -316,9 +339,13 @@ func (l *LcdDecoder) PickCalibration() {
 		l.LastBad = l.curLevels.bad
 	}
 	// Get one entry from the list of the best.
-	l.curLevels = l.GetCalibration(l.Best)
-	l.curLevels.bad = 0
-	l.curLevels.good = 0
+	if l.Count > 0 {
+		l.curLevels = l.GetCalibration(l.Best)
+		l.curLevels.bad = 0
+		l.curLevels.good = 0
+	} else {
+		l.curLevels = l.newLevels()
+	}
 }
 
 // Return the quality range of the calibration data as lowest to highest.
@@ -383,8 +410,8 @@ func (l *levels) Copy() *levels {
 // off is an averaged 'off' value for the entire digit, used for the
 // off level for the segment when the segment is on.
 // threshold is the percentage separating on and off (e.g 50 for mid-point)
-func (d *digLevels) adjustLevels(scan *DigitScan, off, threshold int) {
-	var tmax, tcount int
+func (d *digLevels) adjustLevels(scan *DigitScan, default_off, default_on, threshold int) {
+	var tmax, tcount, off_segments int
 	for i := range d.segLevels {
 		if ((1 << uint(i)) & scan.Mask) != 0 {
 			// Mask bit is on, so the level represents
@@ -392,18 +419,22 @@ func (d *digLevels) adjustLevels(scan *DigitScan, off, threshold int) {
 			d.segLevels[i].max.Add(scan.Segments[i])
 			tmax += d.segLevels[i].max.Value
 			tcount++
-			d.segLevels[i].min.SetDefault(off)
+			d.segLevels[i].min.SetDefault(default_off)
 		} else {
 			// Mask bit is off, so the level represents
 			// an 'off' segment.
 			d.segLevels[i].min.Add(scan.Segments[i])
+			off_segments++
 		}
 	}
-	// For segments that are not on, set the max to an average of the segments
-	// that are on.
-	if tcount > 0 {
+	// For segments that are off, set the max to an average of the segments
+	// that are on. If none are on, use the default value provided.
+	if off_segments > 0 {
+		if tcount > 0 {
+			default_on = tmax / tcount
+		}
 		for i := range d.segLevels {
-			d.segLevels[i].max.SetDefault(tmax / tcount)
+			d.segLevels[i].max.SetDefault(default_on)
 		}
 	}
 	var max, min int
