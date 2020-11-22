@@ -42,7 +42,7 @@ func runTest(t *testing.T, name, result, cal string) {
 	if err != nil {
 		t.Fatalf("Can't read config %s: %v", cname, err)
 	}
-	lcd, err := lcd.CreateLcdDecoder(conf.GetSection(""))
+	lcd, err := lcd.CreateLcdDecoder(conf)
 	if err != nil {
 		t.Fatalf("LCD config for %s failed %v", cname, err)
 	}

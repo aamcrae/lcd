@@ -22,7 +22,7 @@ import (
 )
 
 // Create a 7 segment decoder using the configuration data provided.
-func CreateLcdDecoder(conf *config.Section) (*LcdDecoder, error) {
+func CreateLcdDecoder(conf config.Conf) (*LcdDecoder, error) {
 	var xoff, yoff int
 	l := NewLcdDecoder()
 	// threshold is a percentage defining the point between the
