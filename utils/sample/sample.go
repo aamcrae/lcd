@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aamcrae/MeterMan/lcd"
 	"github.com/aamcrae/config"
+	"github.com/aamcrae/lcd"
 )
 
 var output = flag.String("output", "output.jpg", "output jpeg file")

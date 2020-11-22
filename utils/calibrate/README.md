@@ -1,4 +1,4 @@
-# MeterMan/calibrate
+# lcd/utils/calibrate
 Calibrate allows visual fine-tuning of the LCD digits configuration.
 The source is continually read and markers placed on the image to
 show the digit mapping, and the images presented via a web server.

@@ -22,8 +22,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/aamcrae/MeterMan/lcd"
 	"github.com/aamcrae/config"
+	"github.com/aamcrae/lcd"
 )
 
 func TestImg(t *testing.T) {

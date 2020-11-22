@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/aamcrae/MeterMan/lcd"
+	"github.com/aamcrae/lcd"
 )
 
 const (

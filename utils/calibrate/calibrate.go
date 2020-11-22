@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aamcrae/MeterMan/lcd"
 	"github.com/aamcrae/config"
+	"github.com/aamcrae/lcd"
 )
 
 var configFile = flag.String("config", "config", "Configuration file")

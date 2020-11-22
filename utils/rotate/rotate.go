@@ -20,7 +20,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/aamcrae/MeterMan/lcd"
+	"github.com/aamcrae/lcd"
 )
 
 var angle = flag.Float64("angle", 215.5, "Rotation angle (degrees clockwise)")
