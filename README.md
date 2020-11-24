@@ -56,6 +56,10 @@ generates an image where the actual sampling blocks used to decode the digits ar
 The red areas are the areas of the segments that are sampled. The green areas are scanned to determine what an 'off'
 segment would be measured as.
 
+One of the advantages of this library is that any digit orientation is supported - the digits
+can be upside down,  or even at an angle (which is useful if you have a large set of digits
+and you need to capture them in a diagonal direction to allow them to fit).
+
 ## Image sources
 
 The library uses the standard Go image package for processing the image to be decoded.
