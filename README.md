@@ -64,7 +64,7 @@ is fine for initial configuration and testing.
 However for real applications, the image should be separately sourced and supplied to the library.
 This is usually involves some form of webcam source.
 For example, the ```imageserver``` program that is part of the example programs from the
-(webcam))[http://github.com/aamcrae/webcam] package is one that is easy to use.
+(webcam)[http://github.com/aamcrae/webcam] package is one that is easy to use.
 
 Some of the utility programs (such as the (calibrate)[utils/calibrate/README.md] program) can be supplied
 with a URL that is used to retrieve an appropriate image.
