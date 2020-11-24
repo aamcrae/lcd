@@ -66,7 +66,7 @@ This is usually involves some form of webcam source.
 For example, the ```imageserver``` program that is part of the example programs from the
 (webcam)[http://github.com/aamcrae/webcam] package is one that is easy to use.
 
-Some of the utility programs (such as the (calibrate)[utils/calibrate/README.md] program) can be supplied
+Some of the utility programs (such as the (calibrate)[./utils/calibrate/README.md] program) can be supplied
 with a URL that is used to retrieve an appropriate image.
 
 ## Calibration
@@ -99,7 +99,7 @@ The library has a facility whereby a preset string of characters can be supplied
 7 segment characters, and the library will use this string of characters to build the 'on' and 'off' levels all the segments.
 So an inital set of images along with the corresponding character strings can be used to build an initial calibration database.
 
-Another very useful tool is the [calibrate](utils/calibrate/calibrate.go) program, which
+Another very useful tool is the [calibrate](./utils/calibrate/calibrate.go) program, which
 allows dynamic editing of the configuration defining the digit template and digit definitions, and also
 allows bootstrapping of the calibration levels through manual entry of the character strings.
 
@@ -113,5 +113,11 @@ the changes.
 Running the program with ```--train=true``` will allow the manual entry of a character string, which is then used to dynamically adjust
 the calibration database, which is written to ```/tmp/calibration```. The program attempts to decode the digits, and will display the
 decoded data. If it is correct, hitting _enter_ without entering a string will use the decoded data as input to the calibration adjustment.
+
+## Examples
+
+The most comprehensive example of the use of the library is (MeterMan)[http://github.com/aamcrae/MeterMan].
+
+## Disclaimer
 
 This is not an officially supported Google product.
