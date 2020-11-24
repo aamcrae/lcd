@@ -32,6 +32,8 @@ Since the top left corner in the template is always considered (0, 0), it is not
 The first 3 pairs of co-ordinates define the *top right*, *bottom right* and *bottom left* of the outline of the digit.
 The final (optional) pair indicates the location of the decimal place. If this pair is not present, no decimal place is
 assumed.
+The following image shows how the dimensions of the digit are calculated in the template:
+![lcd](images/digit.jpg)
 
 After the template, 6 separate lines define the 6 digits in the image, each of which uses the template named 'A' to define the
 size of the digit, and a (X, Y) co-ordinate pair that defines the *top left* of the digit.
