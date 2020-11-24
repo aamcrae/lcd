@@ -146,8 +146,8 @@ func (l *LcdDecoder) Scan(img image.Image) []*DigitScan {
 			ds.Segments[i] = l.sampleRegion(img, d.seg[i].points)
 		}
 		// Check for decimal place.
-		if len(d.dp) > 0 {
-			ds.DP = l.sampleRegion(img, d.dp)
+		if len(d.dpb) > 0 {
+			ds.DP = l.sampleRegion(img, d.dpb)
 		}
 		scans = append(scans, ds)
 	}

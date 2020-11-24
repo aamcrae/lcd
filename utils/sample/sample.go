@@ -32,7 +32,7 @@ import (
 
 var output = flag.String("output", "output.jpg", "output jpeg file")
 var configFile = flag.String("config", "config", "Configuration file")
-var section = flag.String("section", "meter", "Configuration section")
+var section = flag.String("section", "", "Configuration section (if any)")
 var input = flag.String("input", "", "Input file")
 var process = flag.Bool("process", true, "Decode digits in image")
 var fill = flag.Bool("fill", true, "Fill in segments")
@@ -48,24 +48,21 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to read config %s: %v", *configFile, err)
 	}
-	sect := c.GetSection(*section)
+	var conf config.Conf
+	if len(*section) > 0 {
+		conf = c.GetSection(*section)
+	} else {
+		conf = c
+	}
 	var angle float64
-	a, err := sect.GetArg("rotate")
+	a, err := conf.GetArg("rotate")
 	if err == nil {
 		angle, err = strconv.ParseFloat(a, 64)
 		if err != nil {
 			angle = 0.0
 		}
 	}
-	l, err := lcd.CreateLcdDecoder(sect)
-	s := sect.Get("calibrate")
-	if len(s) == 1 && len(s[0].Tokens) == 1 {
-		img, err := lcd.ReadImage(s[0].Tokens[0])
-		if err != nil {
-			log.Fatalf("%v", err)
-		}
-		l.Preset(img, *digits)
-	}
+	l, err := lcd.CreateLcdDecoder(conf)
 	if err != nil {
 		log.Fatalf("LCD config failed %v", err)
 	}
@@ -74,7 +71,7 @@ func main() {
 		client := http.Client{
 			Timeout: time.Duration(10) * time.Second,
 		}
-		source, _ := sect.GetArg("source")
+		source, _ := conf.GetArg("source")
 		res, err := client.Get(source)
 		if err != nil {
 			log.Fatalf("Failed to retrieve source image from %s: %v", source, err)
@@ -110,12 +107,6 @@ func main() {
 		}
 	}
 	if *process {
-		cf, _ := sect.GetArg("calibration")
-		if len(cf) != 0 {
-			if _, err := l.RestoreFromFile(cf); err != nil {
-				log.Fatalf("%s: %v\n", cf, err)
-			}
-		}
 		res := l.Decode(img)
 		var str strings.Builder
 		for _, d := range res.Decodes {

@@ -50,7 +50,6 @@ type Template struct {
 	line int               // Line width of segments
 	bb   BBox              // Bounding box of digit
 	off  PList             // List of points in off section
-	dp   PList             // Decimal point offset (if any)
 	mr   Point             // Middle right point
 	ml   Point             // Middle right point
 	tmr  Point             // Top middle right point
@@ -58,6 +57,8 @@ type Template struct {
 	bmr  Point             // Bottom middle right point
 	bml  Point             // Bottom middle left point
 	seg  [SEGMENTS]segment // Segments of digit
+	dp   Point             // Decimal point offset (if any)
+	dpb  PList             // List of points for decimal point
 }
 
 // Digit represents one 7-segment digit.
@@ -67,13 +68,14 @@ type Template struct {
 type Digit struct {
 	index int // Digit index
 	bb    BBox
-	dp    PList
 	tmr   Point
 	tml   Point
 	bmr   Point
 	bml   Point
 	off   PList
 	seg   [SEGMENTS]segment
+	dp    Point
+	dpb   PList
 }
 
 type segment struct {
@@ -146,7 +148,8 @@ func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) err
 		t.bb[i].Y = bb[i*2+1]
 	}
 	if len(dp) == 2 {
-		t.dp = Point{X: dp[0], Y: dp[1]}.Block((width + 1) / 2)
+		t.dp = Point{X: dp[0], Y: dp[1]}
+		t.dpb = t.dp.Block((width + 1) / 2)
 	}
 	// Initialise the bounding boxes representing the segments of the digit.
 	// Calculate the middle points of the digit.
@@ -192,13 +195,13 @@ func (l *LcdDecoder) AddDigit(name string, x, y int) (*Digit, error) {
 	d.bb = t.bb.Offset(x, y)
 	d.off = t.off.Offset(x, y)
 	d.dp = t.dp.Offset(x, y)
+	d.dpb = t.dpb.Offset(x, y)
 	// Copy over the segment data from the template, offsetting the points
 	// using the digit's origin.
 	for i := 0; i < SEGMENTS; i++ {
 		d.seg[i].bb = t.seg[i].bb.Offset(x, y)
 		d.seg[i].points = t.seg[i].points.Offset(x, y)
 	}
-	d.dp = t.dp.Offset(x, y)
 	d.tmr = t.tmr.Offset(x, y)
 	d.tml = t.tml.Offset(x, y)
 	d.bmr = t.bmr.Offset(x, y)

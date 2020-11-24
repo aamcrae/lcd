@@ -41,6 +41,7 @@ func DigitsToSegments(s string) ([]int, error) {
 // If fill true, block fill the on and off portions of the segments.
 func (l *LcdDecoder) MarkSamples(img *image.RGBA, fill bool) {
 	red := color.RGBA{255, 0, 0, 50}
+	blue := color.RGBA{0, 0, 255, 50}
 	green := color.RGBA{0, 255, 0, 50}
 	white := color.RGBA{255, 255, 255, 255}
 	for _, d := range l.Digits {
@@ -49,13 +50,16 @@ func (l *LcdDecoder) MarkSamples(img *image.RGBA, fill bool) {
 		drawCross(img, ext, white)
 		if fill {
 			drawFill(img, d.off, green)
-		}
-		for i := range d.seg {
-			if fill {
+			for i := range d.seg {
 				drawFill(img, d.seg[i].points, red)
 			}
 		}
-		drawFill(img, d.dp, red)
+		if len(d.dpb) > 0 {
+			if fill {
+				drawFill(img, d.dpb, red)
+			}
+			drawCross(img, PList{d.dp}, blue)
+		}
 	}
 }
 
