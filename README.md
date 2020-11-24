@@ -38,4 +38,18 @@ The following image shows how the dimensions of the digit are calculated in the 
 After the template, 6 separate lines define the 6 digits in the image, each of which uses the template named 'A' to define the
 size of the digit, and a (X, Y) co-ordinate pair that defines the *top left* of the digit.
 
+To make it easy to verify the location of the digits, a utility program named [sample](utils/sample/sample.go) is provided
+that reads a configuration and overlays on an image where the digits are e.g run thus:
+```
+./sample --input=lcd6.jpg --config=lcd6.config --fill=false
+```
+generates the file output.jpg:
+![lcd](images/outline6.jpg)
+where each segment's corner has a white arrow placed on it. Running the program with the ```fill``` option turned on:
+```
+./sample --input=lcd6.jpg --config=lcd6.config
+```
+generates an image where the actual sampling blocks used to decode the digits are filled in:
+![lcd](images/fill6.jpg)
+
 This is not an officially supported Google product.
