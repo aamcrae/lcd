@@ -96,7 +96,7 @@ widely varying light conditions whilst maintaining a high level of decoding accu
 However, the challenge then becomes how to initially bootstrap this set of calibration values.
 
 The library has a facility whereby a preset string of characters can be supplied along with an image that has the corresponding
-7 segment characters, and the library will use this string of characters to build the 'on' and 'off' levels all the segments.
+7 segment characters, and the library will use this string of characters to build the 'on' and 'off' levels for all of the segments.
 So an inital set of images along with the corresponding character strings can be used to build an initial calibration database.
 
 Another very useful tool is the [calibrate](./utils/calibrate/calibrate.go) program, which
