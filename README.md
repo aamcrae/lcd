@@ -116,7 +116,7 @@ decoded data. If it is correct, hitting _enter_ without entering a string will u
 
 ## Examples
 
-The most comprehensive example of the use of the library is (MeterMan)[http://github.com/aamcrae/MeterMan].
+The most comprehensive example of the use of the library is [MeterMan](http://github.com/aamcrae/MeterMan).
 
 ## Disclaimer
 
