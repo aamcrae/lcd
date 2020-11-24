@@ -34,7 +34,7 @@ var output = flag.String("output", "output.jpg", "output jpeg file")
 var configFile = flag.String("config", "config", "Configuration file")
 var section = flag.String("section", "", "Configuration section (if any)")
 var input = flag.String("input", "", "Input file")
-var process = flag.Bool("process", true, "Decode digits in image")
+var decode = flag.Bool("decode", false, "Decode digits in image")
 var fill = flag.Bool("fill", true, "Fill in segments")
 var calibrate = flag.Bool("calibrate", false, "Calibrate using image")
 var digits = flag.String("digits", "888888888888", "Digits for calibration")
@@ -95,7 +95,7 @@ func main() {
 	if angle != 0 {
 		in = lcd.RotateImage(in, angle)
 	}
-	if *calibrate && *process {
+	if *calibrate && *decode {
 		l.Preset(in, *digits)
 	}
 	// Convert image to RGBA.
@@ -106,7 +106,7 @@ func main() {
 			img.Set(x, y, color.RGBAModel.Convert(in.At(x, y)))
 		}
 	}
-	if *process {
+	if *decode {
 		res := l.Decode(img)
 		var str strings.Builder
 		for _, d := range res.Decodes {
