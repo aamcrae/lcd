@@ -31,6 +31,7 @@ import (
 )
 
 var configFile = flag.String("config", "config", "Configuration file")
+var section = flag.String("section", "", "Configuration section name")
 var calFile = flag.String("calibration", "", "Calibration file")
 var read = flag.Bool("read", true, "If set, attempt to decode the digits.")
 var train = flag.Bool("train", true, "Enable training mode")
@@ -65,9 +66,19 @@ func main() {
 		if fileMod != fi.ModTime() {
 			time.Sleep(1 * time.Second)
 			fileMod = fi.ModTime()
-			c, err := config.ParseFile(*configFile)
+			conf, err := config.ParseFile(*configFile)
 			if err != nil {
 				log.Fatalf("Failed to read config %s: %v", *configFile, err)
+			}
+			var c config.Conf
+			if len(*section) != 0 {
+				s := conf.GetSection(*section)
+				if s == nil {
+					log.Fatalf("Unknown section (%s) in config %s", *section, *configFile)
+				}
+				c = s
+			} else {
+				c = conf
 			}
 			a, err := c.GetArg("rotate")
 			if err == nil {
