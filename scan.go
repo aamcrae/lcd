@@ -123,6 +123,7 @@ func (l *LcdDecoder) Decode(img image.Image) *DecodeResult {
 			str = append(str, decode.Char)
 		} else {
 			res.Invalid++
+			l.curLevels.digits[di].bad++
 		}
 		if scan.DP > l.curLevels.digits[di].threshold {
 			decode.DP = true

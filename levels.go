@@ -67,6 +67,7 @@ type digLevels struct {
 	min       int                 // Average min value for all segments
 	max       int                 // Average max value for all segments
 	threshold int                 // Average threshold
+	bad       int                 // Bad decodes
 	segLevels [SEGMENTS]segLevels // Per-segment levels data
 }
 
@@ -303,6 +304,15 @@ func (l *LcdDecoder) GetCalibration(qual int) (lev *levels) {
 	return
 }
 
+// Return the digit decode error counters.
+func (l *LcdDecoder) DecodeErrors() []int {
+	var e []int
+	for _, dig := range l.curLevels.digits {
+		e = append(e, dig.bad)
+	}
+	return e
+}
+
 // Save the current levels calibration in the map, discard the worst, and pick the best.
 func (l *LcdDecoder) Recalibrate() {
 	// Calculate a quality metric between 0-100 inclusive from
@@ -341,8 +351,12 @@ func (l *LcdDecoder) PickCalibration() {
 	// Get one entry from the list of the best.
 	if l.Count > 0 {
 		l.curLevels = l.GetCalibration(l.Best)
+		// Clear error counters
 		l.curLevels.bad = 0
 		l.curLevels.good = 0
+		for _, dig := range l.curLevels.digits {
+			dig.bad = 0
+		}
 	} else {
 		l.curLevels = l.newLevels()
 	}
