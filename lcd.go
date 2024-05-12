@@ -130,65 +130,62 @@ func NewLcdDecoder() *LcdDecoder {
 // dp is an optional point offset where a decimal place is located.
 // width is the width of the segment in pixels.
 // All point references in the template are relative to the origin of the digit.
-func (l *LcdDecoder) AddTemplate(name string, bb []int, dp []int, width int) error {
-	if _, ok := l.templates[name]; ok {
-		return fmt.Errorf("Duplicate template entry: %s", name)
-	}
-	if len(bb) != 6 {
-		return fmt.Errorf("Invalid bounding box length (expected 6, got %d)", len(bb))
-	}
-	if len(dp) != 0 && len(dp) != 2 {
-		return fmt.Errorf("Invalid decimal point")
+func (l *LcdDecoder) AddTemplate(conf LcdTemplate) error {
+	if _, ok := l.templates[conf.Name]; ok {
+		return fmt.Errorf("Duplicate template entry: %s", conf.Name)
 	}
 	// Prepend the implied top left origin (0,0).
-	bb = append([]int{0, 0}, bb...)
-	t := &Template{name: name, line: width}
-	for i := range t.bb {
-		t.bb[i].X = bb[i*2]
-		t.bb[i].Y = bb[i*2+1]
-	}
-	if len(dp) == 2 {
-		t.dp = Point{X: dp[0], Y: dp[1]}
-		t.dpb = t.dp.Block((width + 1) / 2)
+	t := &Template{name: conf.Name, line: conf.Width}
+	t.bb[1].X = conf.Tr[0]
+	t.bb[1].Y = conf.Tr[1]
+	t.bb[2].X = conf.Br[0]
+	t.bb[2].Y = conf.Br[1]
+	t.bb[3].X = conf.Bl[0]
+	t.bb[3].Y = conf.Bl[1]
+	if len(conf.Dp) == 2 {
+		t.dp = Point{X: conf.Dp[0], Y: conf.Dp[1]}
+		t.dpb = t.dp.Block((t.line + 1) / 2)
 	}
 	// Initialise the bounding boxes representing the segments of the digit.
 	// Calculate the middle points of the digit.
 	t.mr = Split(t.bb[TR], t.bb[BR], 2)[0]
-	t.tmr = Adjust(t.mr, t.bb[TR], width/2)
-	t.bmr = Adjust(t.mr, t.bb[BR], width/2)
+	t.tmr = Adjust(t.mr, t.bb[TR], t.line/2)
+	t.bmr = Adjust(t.mr, t.bb[BR], t.line/2)
 	t.ml = Split(t.bb[TL], t.bb[BL], 2)[0]
-	t.tml = Adjust(t.ml, t.bb[TL], width/2)
-	t.bml = Adjust(t.ml, t.bb[BL], width/2)
+	t.tml = Adjust(t.ml, t.bb[TL], t.line/2)
+	t.bml = Adjust(t.ml, t.bb[BL], t.line/2)
 	// Build the 'off' point list using the middle blocks inside the
 	// upper and lower squares of the segments.
-	offbb1 := BBox{t.bb[TL], t.bb[TR], t.bmr, t.bml}.Inner(width + offMargin)
-	offbb2 := BBox{t.tml, t.tmr, t.bb[BR], t.bb[BL]}.Inner(width + offMargin)
+	offbb1 := BBox{t.bb[TL], t.bb[TR], t.bmr, t.bml}.Inner(t.line + offMargin)
+	offbb2 := BBox{t.tml, t.tmr, t.bb[BR], t.bb[BL]}.Inner(t.line + offMargin)
 	t.off = offbb1.Points()
 	t.off = append(t.off, offbb2.Points()...)
 	// Create the bounding boxes of each segment in the digit.
 	// The assignments must match the bit allocation in the lookup table.
-	t.seg[S_TL].bb = SegmentBB(t.bb[TL], t.ml, t.bb[TR], t.mr, width, onMargin)
-	t.seg[S_TM].bb = SegmentBB(t.bb[TL], t.bb[TR], t.bb[BL], t.bb[BR], width, onMargin)
-	t.seg[S_TR].bb = SegmentBB(t.bb[TR], t.mr, t.bb[TL], t.ml, width, onMargin)
-	t.seg[S_BR].bb = SegmentBB(t.mr, t.bb[BR], t.ml, t.bb[BL], width, onMargin)
-	t.seg[S_BM].bb = SegmentBB(t.bb[BL], t.bb[BR], t.ml, t.mr, width, onMargin)
-	t.seg[S_BL].bb = SegmentBB(t.ml, t.bb[BL], t.mr, t.bb[BR], width, onMargin)
-	t.seg[S_MM].bb = SegmentBB(t.tml, t.tmr, t.bb[BL], t.bb[BR], width, onMargin)
+	t.seg[S_TL].bb = SegmentBB(t.bb[TL], t.ml, t.bb[TR], t.mr, t.line, onMargin)
+	t.seg[S_TM].bb = SegmentBB(t.bb[TL], t.bb[TR], t.bb[BL], t.bb[BR], t.line, onMargin)
+	t.seg[S_TR].bb = SegmentBB(t.bb[TR], t.mr, t.bb[TL], t.ml, t.line, onMargin)
+	t.seg[S_BR].bb = SegmentBB(t.mr, t.bb[BR], t.ml, t.bb[BL], t.line, onMargin)
+	t.seg[S_BM].bb = SegmentBB(t.bb[BL], t.bb[BR], t.ml, t.mr, t.line, onMargin)
+	t.seg[S_BL].bb = SegmentBB(t.ml, t.bb[BL], t.mr, t.bb[BR], t.line, onMargin)
+	t.seg[S_MM].bb = SegmentBB(t.tml, t.tmr, t.bb[BL], t.bb[BR], t.line, onMargin)
 	// For each segment, create a list of all the points within the segment.
 	for i := range t.seg {
 		t.seg[i].points = t.seg[i].bb.Points()
 	}
-	l.templates[name] = t
+	l.templates[t.name] = t
 	return nil
 }
 
 // Add a digit using the named template. The template points are offset
 // by the absolute point location of the digit (x, y).
-func (l *LcdDecoder) AddDigit(name string, x, y int) (*Digit, error) {
-	t, ok := l.templates[name]
+func (l *LcdDecoder) AddDigit(conf DigitConfig) (*Digit, error) {
+	t, ok := l.templates[conf.Lcd]
 	if !ok {
-		return nil, fmt.Errorf("Unknown template %s", name)
+		return nil, fmt.Errorf("Unknown template %s", conf.Lcd)
 	}
+	x := conf.Coord[0]
+	y := conf.Coord[1]
 	index := len(l.Digits)
 	d := &Digit{}
 	d.index = index

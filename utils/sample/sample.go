@@ -19,20 +19,19 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/aamcrae/config"
 	"github.com/aamcrae/lcd"
+	"gopkg.in/yaml.v3"
 )
 
 var output = flag.String("output", "output.jpg", "output jpeg file")
 var configFile = flag.String("config", "config", "Configuration file")
-var section = flag.String("section", "", "Configuration section (if any)")
 var input = flag.String("input", "", "Input file")
 var decode = flag.Bool("decode", false, "Decode digits in image")
 var fill = flag.Bool("fill", true, "Fill in segments")
@@ -43,26 +42,23 @@ func init() {
 	flag.Parse()
 }
 
+type config struct {
+	Source string
+	Rotate float64
+	Config lcd.LcdConfig
+}
+
 func main() {
-	c, err := config.ParseFile(*configFile)
+	s, err := ioutil.ReadFile(*configFile)
 	if err != nil {
-		log.Fatalf("Failed to read config %s: %v", *configFile, err)
+		log.Fatalf("Can't read config %s: %v", *configFile, err)
 	}
-	var conf config.Conf
-	if len(*section) > 0 {
-		conf = c.GetSection(*section)
-	} else {
-		conf = c
+	var conf config
+	err = yaml.Unmarshal([]byte(s), &conf)
+	if err != nil {
+		log.Fatalf("config parse fail %s: %v", *configFile, err)
 	}
-	var angle float64
-	a, err := conf.GetArg("rotate")
-	if err == nil {
-		angle, err = strconv.ParseFloat(a, 64)
-		if err != nil {
-			angle = 0.0
-		}
-	}
-	l, err := lcd.CreateLcdDecoder(conf)
+	l, err := lcd.CreateLcdDecoder(conf.Config)
 	if err != nil {
 		log.Fatalf("LCD config failed %v", err)
 	}
@@ -71,15 +67,14 @@ func main() {
 		client := http.Client{
 			Timeout: time.Duration(10) * time.Second,
 		}
-		source, _ := conf.GetArg("source")
-		res, err := client.Get(source)
+		res, err := client.Get(conf.Source)
 		if err != nil {
-			log.Fatalf("Failed to retrieve source image from %s: %v", source, err)
+			log.Fatalf("Failed to retrieve source image from %s: %v", conf.Source, err)
 		}
 		in, _, err = image.Decode(res.Body)
 		res.Body.Close()
 		if err != nil {
-			log.Fatalf("Failed to decode image from %s: %v", source, err)
+			log.Fatalf("Failed to decode image from %s: %v", conf.Source, err)
 		}
 	} else {
 		inf, err := os.Open(*input)
@@ -92,8 +87,8 @@ func main() {
 			log.Fatalf("Failed to read %s: %v", *input, err)
 		}
 	}
-	if angle != 0 {
-		in = lcd.RotateImage(in, angle)
+	if conf.Rotate != 0 {
+		in = lcd.RotateImage(in, conf.Rotate)
 	}
 	if *calibrate && *decode {
 		l.Preset(in, *digits)

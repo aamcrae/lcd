@@ -19,15 +19,15 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/aamcrae/config"
 	"github.com/aamcrae/lcd"
+	"gopkg.in/yaml.v3"
 )
 
 var configFile = flag.String("config", "config", "Configuration file")
@@ -41,6 +41,12 @@ var delay = flag.Int("delay", 1, "Number of seconds between each image read")
 
 func init() {
 	flag.Parse()
+}
+
+type config struct {
+	Source string
+	Rotate float64
+	Config lcd.LcdConfig
 }
 
 func main() {
@@ -66,29 +72,16 @@ func main() {
 		if fileMod != fi.ModTime() {
 			time.Sleep(1 * time.Second)
 			fileMod = fi.ModTime()
-			conf, err := config.ParseFile(*configFile)
+			s, err := ioutil.ReadFile(*configFile)
 			if err != nil {
-				log.Fatalf("Failed to read config %s: %v", *configFile, err)
+				log.Fatalf("Can't read config %s: %v", *configFile, err)
 			}
-			var c config.Conf
-			if len(*section) != 0 {
-				s := conf.GetSection(*section)
-				if s == nil {
-					log.Fatalf("Unknown section (%s) in config %s", *section, *configFile)
-				}
-				c = s
-			} else {
-				c = conf
+			var conf config
+			err = yaml.Unmarshal([]byte(s), &conf)
+			if err != nil {
+				log.Fatalf("config parse fail %s: %v", *configFile, err)
 			}
-			a, err := c.GetArg("rotate")
-			if err == nil {
-				angle, err = strconv.ParseFloat(a, 64)
-				if err != nil {
-					angle = 0.0
-				}
-			}
-			source, _ = c.GetArg("source")
-			decoder, err = lcd.CreateLcdDecoder(c)
+			decoder, err = lcd.CreateLcdDecoder(conf.Config)
 			if err != nil {
 				log.Fatalf("LCD config failed %v", err)
 			}

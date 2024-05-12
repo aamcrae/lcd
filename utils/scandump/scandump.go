@@ -18,16 +18,15 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"io/ioutil"
 	"log"
 	"os"
-	"strconv"
 
-	"github.com/aamcrae/config"
 	"github.com/aamcrae/lcd"
+	"gopkg.in/yaml.v3"
 )
 
 var configFile = flag.String("config", "config", "Configuration file")
-var section = flag.String("section", "meter", "Configuration section")
 var input = flag.String("input", "input.jpg", "Input file")
 var calImage = flag.String("image", "", "Calibration image")
 var calibration = flag.String("calibration", "", "Calibration cache file")
@@ -38,24 +37,30 @@ func init() {
 	flag.Parse()
 }
 
+type config struct {
+	Meter struct {
+		Source        string
+		Rotate        float64
+		lcd.LcdConfig `yaml:",inline"`
+	}
+}
+
 func main() {
-	c, err := config.ParseFile(*configFile)
+	s, err := ioutil.ReadFile(*configFile)
 	if err != nil {
-		log.Fatalf("Failed to read config %s: %v", *configFile, err)
+		log.Fatalf("Can't read config %s: %v", *configFile, err)
 	}
-	sect := c.GetSection(*section)
-	var angle float64
-	a, err := sect.GetArg("rotate")
-	if err == nil {
-		angle, err = strconv.ParseFloat(a, 64)
-		if err != nil {
-			angle = 0.0
-		}
-	}
-	l, err := lcd.CreateLcdDecoder(sect)
+	var conf config
+	err = yaml.Unmarshal([]byte(s), &conf)
 	if err != nil {
-		log.Fatalf("LCD config failed %v", err)
+		log.Fatalf("config parse fail %s: %v", *configFile, err)
 	}
+	var lc lcd.LcdConfig
+	lc.Threshold = conf.Meter.Threshold
+	lc.Offset = conf.Meter.Offset
+	copy(lc.Lcd, conf.Meter.Lcd)
+	copy(lc.Digit, conf.Meter.Digit)
+	l, err := lcd.CreateLcdDecoder(lc)
 	if len(*calibration) > 0 {
 		if _, err := l.RestoreFromFile(*calibration); err != nil {
 			log.Fatalf("%s: %v\n", *calibration, err)
@@ -77,8 +82,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to read %s: %v", *input, err)
 	}
-	if angle != 0 {
-		img = lcd.RotateImage(img, angle)
+	if conf.Meter.Rotate != 0 {
+		img = lcd.RotateImage(img, conf.Meter.Rotate)
 	}
 	res := l.Decode(img)
 	for i := range res.Decodes {

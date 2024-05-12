@@ -161,8 +161,9 @@ func (l *LcdDecoder) RestoreFromFile(f string) (int, error) {
 
 // Restore the calibration data from a saved cache.
 // Format is a line of CSV, either:
-//   index,quality
-//   index,digit,segment,min,max
+//
+//	index,quality
+//	index,digit,segment,min,max
 func (l *LcdDecoder) Restore(r io.Reader) (int, error) {
 	oldIndex := -1
 	scanner := bufio.NewScanner(r)

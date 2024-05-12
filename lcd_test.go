@@ -19,11 +19,13 @@ import (
 
 	"fmt"
 	"image/jpeg"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
-	"github.com/aamcrae/config"
 	"github.com/aamcrae/lcd"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestImg(t *testing.T) {
@@ -38,9 +40,14 @@ func TestImg(t *testing.T) {
 func runTest(t *testing.T, name, result, cal string) {
 	cname := name + ".config"
 	imagename := name + ".jpg"
-	conf, err := config.ParseFile(filepath.Join("testdata", cname))
+	s, err := ioutil.ReadFile(filepath.Join("testdata", cname))
 	if err != nil {
 		t.Fatalf("Can't read config %s: %v", cname, err)
+	}
+	var conf lcd.LcdConfig
+	err = yaml.Unmarshal([]byte(s), &conf)
+	if err != nil {
+		t.Fatalf("config parse fail %s: %v", cname, err)
 	}
 	lcd, err := lcd.CreateLcdDecoder(conf)
 	if err != nil {
