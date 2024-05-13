@@ -135,12 +135,9 @@ func (l *LcdDecoder) AddTemplate(conf LcdTemplate) error {
 	}
 	t := &Template{name: conf.Name, line: conf.Width}
 	// Offset the points so top left is (0,0)
-	t.bb[1].X = conf.Tr[0] - conf.Tl[0]
-	t.bb[1].Y = conf.Tr[1] - conf.Tl[1]
-	t.bb[2].X = conf.Br[0] - conf.Tl[0]
-	t.bb[2].Y = conf.Br[1] - conf.Tl[1]
-	t.bb[3].X = conf.Bl[0] - conf.Tl[0]
-	t.bb[3].Y = conf.Bl[1] - conf.Tl[1]
+	t.bb[1] = Point{X: conf.Tr[0] - conf.Tl[0], Y: conf.Tr[1] - conf.Tl[1]}
+	t.bb[2] = Point{X: conf.Br[0] - conf.Tl[0], Y: conf.Br[1] - conf.Tl[1]}
+	t.bb[3] = Point{X: conf.Bl[0] - conf.Tl[0], Y: conf.Bl[1] - conf.Tl[1]}
 	if len(conf.Dp) == 2 {
 		t.dp = Point{X: conf.Dp[0] - conf.Tl[0], Y: conf.Dp[1] - conf.Tl[1]}
 		t.dpb = t.dp.Block((t.line + 1) / 2)
