@@ -49,8 +49,8 @@ func CreateLcdDecoder(conf LcdConfig) (*LcdDecoder, error) {
 		l.Threshold = conf.Threshold
 	}
 	// lcd defines one 7 segment digit template.
-	// The format is a name followed by 3 pairs of x/y offsets defining the corners
-	// of the digit (relative to implied top left of 0,0), followed by a value defining
+	// The format is a name followed by 4 pairs of x/y coordinates defining the corners
+	// of the digit (relative to the top left), followed by a value defining
 	// the pixel width of the segment elements.
 	if len(conf.Lcd) == 0 {
 		return nil, fmt.Errorf("No LCDs defined")

@@ -30,13 +30,13 @@ const onMargin = 2
 // Segments, as enum and bit mask.
 const (
 	S_TL, M_TL = iota, 1 << iota // Top left
-	S_TM, M_TM = iota, 1 << iota // Top middle
-	S_TR, M_TR = iota, 1 << iota // Top right
-	S_BR, M_BR = iota, 1 << iota // Bottom right
-	S_BM, M_BM = iota, 1 << iota // Bottom middle
-	S_BL, M_BL = iota, 1 << iota // Bottom left
-	S_MM, M_MM = iota, 1 << iota // Middle
-	SEGMENTS   = iota
+	S_TM, M_TM                   // Top middle
+	S_TR, M_TR                   // Top right
+	S_BR, M_BR                   // Bottom right
+	S_BM, M_BM                   // Bottom middle
+	S_BL, M_BL                   // Bottom left
+	S_MM, M_MM                   // Middle
+	SEGMENTS, _
 )
 
 // Base template for one type/size of 7-segment digit.
@@ -44,7 +44,7 @@ const (
 // When a digit is created using this template, the points are
 // offset from the point where the digit is placed.
 // The idea is that different size of digits use a different
-// template, and that multiple digits are created from a single template.
+// template, and that multiple digits can be created from a single template.
 type Template struct {
 	name string            // Name of template
 	line int               // Line width of segments
@@ -62,9 +62,9 @@ type Template struct {
 }
 
 // Digit represents one 7-segment digit.
-// It is typically created from a template, by offsetting the relative
+// It is typically created by cloning a template, and offsetting the relative
 // point values with the absolute point representing the top left of the digit.
-// All point values are absolute as a result.
+// All cordinates are absolute as a result.
 type Digit struct {
 	index int // Digit index
 	bb    BBox
@@ -78,6 +78,8 @@ type Digit struct {
 	dpb   PList
 }
 
+// segment holds the bounding box of a single segment of a digit,
+// as well as a list of all the points in that segment.
 type segment struct {
 	bb     BBox
 	points PList
@@ -134,7 +136,8 @@ func (l *LcdDecoder) AddTemplate(conf LcdTemplate) error {
 		return fmt.Errorf("Duplicate template entry: %s", conf.Name)
 	}
 	t := &Template{name: conf.Name, line: conf.Width}
-	// Offset the points so top left is (0,0)
+	// Offset the points so top left is (0,0). The value of the top left
+	// point is left as (0,0).
 	t.bb[1] = Point{X: conf.Tr[0] - conf.Tl[0], Y: conf.Tr[1] - conf.Tl[1]}
 	t.bb[2] = Point{X: conf.Br[0] - conf.Tl[0], Y: conf.Br[1] - conf.Tl[1]}
 	t.bb[3] = Point{X: conf.Bl[0] - conf.Tl[0], Y: conf.Bl[1] - conf.Tl[1]}

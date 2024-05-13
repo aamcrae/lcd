@@ -23,25 +23,28 @@ import (
 	"math"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/fogleman/gg"
 )
 
 // Save the image, using the suffix to select the type of image.
 func SaveImage(name string, img image.Image) error {
+	if len(name) < 3 {
+		return fmt.Errorf("%s: name must have suffix (jpg, png, gif)", name)
+	}
 	of, err := os.Create(name)
 	if err != nil {
 		return err
 	}
 	defer of.Close()
-	if strings.HasSuffix(name, "png") {
+	switch name[len(name)-3:] {
+	case "png":
 		return png.Encode(of, img)
-	} else if strings.HasSuffix(name, "jpg") {
+	case "jpg":
 		return jpeg.Encode(of, img, nil)
-	} else if strings.HasSuffix(name, "gif") {
+	case "gif":
 		return gif.Encode(of, img, nil)
-	} else {
+	default:
 		return fmt.Errorf("%s: unknown image format", name)
 	}
 }

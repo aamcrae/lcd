@@ -17,9 +17,9 @@ package lcd
 // Bounding box indices, representing the corners of the box (top/bottom left/right).
 const (
 	TL = iota
-	TR = iota
-	BR = iota
-	BL = iota
+	TR
+	BR
+	BL
 )
 
 // BBox represents a bounding box, with the indices above representing the corners.
