@@ -55,14 +55,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("config parse fail %s: %v", *configFile, err)
 	}
-	var lc lcd.LcdConfig
-	lc.Threshold = conf.Meter.Threshold
-	lc.Offset = conf.Meter.Offset
-	lc.Lcd = make([]lcd.LcdTemplate, len(conf.Meter.Lcd))
-	lc.Digit = make([]lcd.DigitConfig, len(conf.Meter.Digit))
-	copy(lc.Lcd, conf.Meter.Lcd)
-	copy(lc.Digit, conf.Meter.Digit)
-	l, err := lcd.CreateLcdDecoder(lc)
+	l, err := lcd.CreateLcdDecoder(conf.Meter.LcdConfig)
 	if len(*calibration) > 0 {
 		if _, err := l.RestoreFromFile(*calibration); err != nil {
 			log.Fatalf("%s: %v\n", *calibration, err)
