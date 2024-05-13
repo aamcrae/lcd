@@ -58,6 +58,8 @@ func main() {
 	var lc lcd.LcdConfig
 	lc.Threshold = conf.Meter.Threshold
 	lc.Offset = conf.Meter.Offset
+	lc.Lcd = make([]lcd.LcdTemplate, len(conf.Meter.Lcd))
+	lc.Digit = make([]lcd.DigitConfig, len(conf.Meter.Digit))
 	copy(lc.Lcd, conf.Meter.Lcd)
 	copy(lc.Digit, conf.Meter.Digit)
 	l, err := lcd.CreateLcdDecoder(lc)
