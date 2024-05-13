@@ -20,9 +20,10 @@ import (
 
 type LcdTemplate struct {
 	Name  string
-	Tr    [2]int
-	Br    [2]int
-	Bl    [2]int
+	Tl    [2]int // Top left (origin)
+	Tr    [2]int // Top right
+	Br    [2]int // Bottom right
+	Bl    [2]int // Bottom left
 	Width int
 	Dp    []int
 }

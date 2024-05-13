@@ -123,10 +123,9 @@ func NewLcdDecoder() *LcdDecoder {
 
 // Add a digit template.
 // Each template describes the parameters of one type/size of digit.
-// bb contains a list of 3 points representing the top right,
+// bb contains a list of 4 points representing the top left, top right,
 // bottom right and bottom left of the boundaries of the digit.
-// These are signed offsets from the implied base of (0,0) representing
-// the top left of the digit.
+// The points are offset to ensure the top left is at (0,0)
 // dp is an optional point offset where a decimal place is located.
 // width is the width of the segment in pixels.
 // All point references in the template are relative to the origin of the digit.
@@ -134,16 +133,16 @@ func (l *LcdDecoder) AddTemplate(conf LcdTemplate) error {
 	if _, ok := l.templates[conf.Name]; ok {
 		return fmt.Errorf("Duplicate template entry: %s", conf.Name)
 	}
-	// Prepend the implied top left origin (0,0).
 	t := &Template{name: conf.Name, line: conf.Width}
-	t.bb[1].X = conf.Tr[0]
-	t.bb[1].Y = conf.Tr[1]
-	t.bb[2].X = conf.Br[0]
-	t.bb[2].Y = conf.Br[1]
-	t.bb[3].X = conf.Bl[0]
-	t.bb[3].Y = conf.Bl[1]
+	// Offset the points so top left is (0,0)
+	t.bb[1].X = conf.Tr[0] - conf.Tl[0]
+	t.bb[1].Y = conf.Tr[1] - conf.Tl[1]
+	t.bb[2].X = conf.Br[0] - conf.Tl[0]
+	t.bb[2].Y = conf.Br[1] - conf.Tl[1]
+	t.bb[3].X = conf.Bl[0] - conf.Tl[0]
+	t.bb[3].Y = conf.Bl[1] - conf.Tl[1]
 	if len(conf.Dp) == 2 {
-		t.dp = Point{X: conf.Dp[0], Y: conf.Dp[1]}
+		t.dp = Point{X: conf.Dp[0] - conf.Tl[0], Y: conf.Dp[1] - conf.Tl[1]}
 		t.dpb = t.dp.Block((t.line + 1) / 2)
 	}
 	// Initialise the bounding boxes representing the segments of the digit.
