@@ -12,27 +12,38 @@ For example, given the image:
 There are 6 digits in the display that are all the same size, so a digit template can be used
 to define the size and shape of the digits, and then a definition of 6 digits that use the template as a base.
 
-The configuration that defines this is:
+The YAML configuration that defines this is:
+```yaml
+lcd:
+  - name A
+    tr: [81,0]
+    br: [70,136]
+    bl: [-9,135]
+    dp: [85,127]
+    width: 21
+digit:
+  - lcd: A
+    coord: [281,253]
+  - lcd: A
+    coord: [394,251]
+  - lcd: A
+    coord: [508,252]
+  - lcd: A
+    coord: [617,252]
+  - lcd: A
+    coord: [731,251]
+  - lcd: A
+    coord: [842,252]
 ```
-lcd=A,81,0,70,136,-9,135,21,85,127
-digit=A,281,253
-digit=A,394,251
-digit=A,508,252
-digit=A,617,252
-digit=A,731,251
-digit=A,842,252
-```
-(The configuration uses the [config](http://github.com/aamcrae/config) library to parse
-the lines in the file configuration). The core library does not _require_ the use of this config library - the library can be
-configured discretely using method calls.
-
-The first line defines a digit template, which is expressed as a name or tag ('A' in this instance),
+The first section defines a digit template, which is expressed as a name or tag ('A' in this instance),
 3 pairs of (X, Y) co-ordinates, a pixel width of the segments
 (21 in this case), and an optional (X, Y) co-ordinate defining the centre of the decimal place.
 All of the (X, Y) co-ordinates are _offsets_ from a base point (0, 0) that represents the *top left* corner of the digit.
-Since the top left corner in the template is always considered (0, 0), it is not included in the template definition.
+Since the top left corner in the template is always considered (0, 0), it is not included in the template definition,
+but it can optionally be added as ```tl```. If a top left set of co-ordinates is present, these values are subtracted
+from the other co-ordinates so that the top left is normalised to (0,0).
 The first 3 pairs of co-ordinates define the *top right*, *bottom right* and *bottom left* of the outline of the digit.
-The final (optional) pair indicates the location of the decimal place. If this pair is not present, no decimal place is
+The optional ```dp``` pair indicates the location of the decimal place. If this pair is not present, no decimal place is
 assumed.
 The following image shows how the dimensions of the digit are calculated in the template:
 ![lcd](images/digit.jpg)
