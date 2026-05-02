@@ -105,7 +105,7 @@ func (l *LcdDecoder) newLevels() *levels {
 	lev := new(levels)
 	for i := 0; i < len(l.Digits); i++ {
 		dl := new(digLevels)
-		for s := 0; s < SEGMENTS; s++ {
+		for s := range SEGMENTS {
 			dl.segLevels[s].min = NewAvg(l.History)
 			dl.segLevels[s].max = NewAvg(l.History)
 		}
@@ -126,7 +126,7 @@ func (l *LcdDecoder) CalibrateUsingScan(img image.Image, scans []*DigitScan) err
 		if s.Mask == 0 {
 			var on_segments int
 			for _, s2 := range scans {
-				for m := 0; m < SEGMENTS; m++ {
+				for m := range SEGMENTS {
 					if (s2.Mask & (1 << uint(m))) != 0 {
 						on_segments++
 						default_on += s2.Segments[m]

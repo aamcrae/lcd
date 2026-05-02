@@ -164,20 +164,6 @@ func onSegment(p, q, r Point) bool {
 	return false
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 // Create a new bounding box as a copy of bb, with the points offset by x and y.
 func (bb BBox) Offset(x, y int) BBox {
 	var nb BBox

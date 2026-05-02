@@ -194,7 +194,7 @@ func (l *LcdDecoder) AddDigit(conf DigitConfig) (*Digit, error) {
 	d.dpb = t.dpb.Offset(x, y)
 	// Copy over the segment data from the template, offsetting the points
 	// using the digit's origin.
-	for i := 0; i < SEGMENTS; i++ {
+	for i := range SEGMENTS {
 		d.seg[i].bb = t.seg[i].bb.Offset(x, y)
 		d.seg[i].points = t.seg[i].points.Offset(x, y)
 	}

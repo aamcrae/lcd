@@ -31,7 +31,7 @@ func TestAvg(t *testing.T) {
 	if a.Value != 150 {
 		t.Fatalf("Expected value 150, got %d", a.Value)
 	}
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		a.Add(10)
 	}
 	if a.Value != 10 {
